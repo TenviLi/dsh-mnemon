@@ -1145,6 +1145,38 @@ describe('Mnemon memory subagent coordinator', () => {
     expect(runtime.compactAndMutate).not.toHaveBeenCalled()
   })
 
+  it('deterministically routes to the default store when the routing model fails, then still commits the archive', async () => {
+    const plan = maintenancePlan()
+    const host = subagents(undefined, 'max-tokens')
+    const runtime = {
+      mutate: vi.fn().mockRejectedValueOnce(new RuntimeMemoryCapacityError('memory', plan.used, plan.projected, plan.limit)),
+      planMaintenance: vi.fn(async () => plan),
+      compactAndMutate: vi.fn(async () => ({
+        success: true,
+        message: 'Entry added.',
+        target: 'memory',
+        entryCount: 2,
+        usage: { used: 120, limit: 10_240 },
+        added: plan.pending!.content,
+      })),
+    } as unknown as RuntimeMemoryController
+    const memoryService = service()
+    addSecondWritableBody(memoryService)
+    const coordinator = new MnemonSubagentCoordinator(host.value, runtimeSource(runtime, memoryService) as never, undefined, toolRegistry().value)
+
+    await expect(coordinator.runtime(parent(), { action: 'add', target: 'memory', content: plan.pending!.content }, new AbortController().signal))
+      .resolves.toMatchObject({
+        added: plan.pending!.content,
+        // 模型路由失败后，归档仍以 host 兜底完成，不再整体中止。
+        maintenance: { kind: 'mnemon-archive', memoryBodyIds: ['project'] },
+      })
+    expect(host.start).toHaveBeenCalledOnce()
+    // 两条待归档条目全部确定性落到第一个 eligible body（project），Provider 仍收到完整原文。
+    expect(memoryService.rememberMany).toHaveBeenCalledOnce()
+    expect(vi.mocked(memoryService.rememberMany).mock.calls[0]![0].map(request => request.memoryBodyId)).toEqual(['project', 'project'])
+    expect(memoryService.remember).not.toHaveBeenCalled()
+    expect(runtime.compactAndMutate).toHaveBeenCalledOnce()
+  })
   it('accepts a skipped archive write only after exact Host recall verification', async () => {
     const sourceEntry = { content: 'Use SQLite for local storage.', importance: 'normal' as const }
     const plan = maintenancePlan('memory', [sourceEntry])
