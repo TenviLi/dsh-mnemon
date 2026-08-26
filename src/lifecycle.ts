@@ -106,6 +106,17 @@ function sourceOf(message: HostUserMessage): { kind?: string; plugin?: string } 
   return message.source
 }
 
+/**
+ * Whether an event is a durable user message this plugin produced.
+ */
+function isOwnUserMessageEvent(event: HostSessionEvent | undefined): boolean {
+  if (event?.type !== 'user/message') return false
+  const source = event.data.source
+  if (typeof source !== 'object' || source === null) return false
+  const { kind, plugin } = source as { kind?: unknown; plugin?: unknown }
+  return kind === 'plugin' && plugin === MNEMON_PLUGIN_SOURCE
+}
+
 function eventTurn(event: HostSessionEvent): number | undefined {
   return typeof event.data.turn === 'number' ? event.data.turn : undefined
 }
@@ -200,6 +211,11 @@ class MnemonAgentLifecycle {
     explicitCandidate: boolean
     noMaintenance: boolean
   }>()
+  /**
+   * Fallback presence marker for hosts that publish no surface projection.
+   * A host with a surface answers the question from what the model can
+   * actually see, which is what makes a rewind self-correcting.
+   */
   private cueInjected = false
   private idleReviewTimer: ReturnType<typeof setTimeout> | undefined
   private reviewController: AbortController | undefined
@@ -290,6 +306,27 @@ class MnemonAgentLifecycle {
     return pinned === undefined ? undefined : pinned.manager.wake(pinned.context.viewId)
   }
 
+  /**
+   * Whether the reminder is still visible to the model.
+   *
+   * Read from the surface rather than from `cueInjected`, because a rewind is a
+   * surface replacement inside the same live session: it does not emit
+   * `agent/session-start`, so a session-scoped flag stays set and the reminder
+   * never returns. The durable event log cannot answer this either, since it is
+   * append-only and still contains the discarded message.
+   *
+   * Scanning forward is cheap: the reminder sits near the head of the surface,
+   * so the loop exits after a few nodes even on a long session.
+   */
+  private cueAlreadyVisible(): boolean {
+    const nodes = this.agent.session.surface?.nodes
+    if (nodes === undefined) return this.cueInjected
+    for (const seq of nodes) {
+      if (isOwnUserMessageEvent(this.agent.session.events[seq])) return true
+    }
+    return false
+  }
+
   private async preStep(payload: PreStepPayload, next: () => Promise<HostPreStepDecision>): Promise<HostPreStepDecision> {
     if (payload.step === 1) this.cancelIdleReview(true)
     const decision = await next()
@@ -317,7 +354,7 @@ class MnemonAgentLifecycle {
       this.counters.primes += 1
       this.mark('prime')
     }
-    if (this.cueInjected) return decision
+    if (this.cueAlreadyVisible()) return decision
     const reminder = guidedReminder(this.config)
     if (reminder === undefined) return decision
     this.cueInjected = true
