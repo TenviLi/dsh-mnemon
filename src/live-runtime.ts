@@ -75,7 +75,10 @@ export function createRuntimeGraph(config: ResolvedConfig, workspaceRoot?: strin
       return receiptBridge.record(operation)
     }
     const service = new MnemonService(runner, config, undefined, undefined, undefined, recordCommit)
-    const runtimeMemory = new RuntimeMemoryController(runner, undefined, recordCommit)
+    const runtimeMemory = new RuntimeMemoryController(runner, undefined, recordCommit, {
+      memory: config.runtimeMemory.memoryLimitBytes,
+      user: config.runtimeMemory.userLimitBytes,
+    })
     const documents = new DocumentManager(undefined, undefined, () => runner.effectiveDataDir(), recordCommit)
     const storage = new StorageScopeInspector(runner, config)
     const packs = new MnemonPackManager(runner, config, components => {

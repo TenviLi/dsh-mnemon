@@ -11,7 +11,12 @@ import {
   DEFAULT_RECALL_MAX_MEDIUM_RESULTS,
   DEFAULT_RECALL_MAX_UNKNOWN_RESULTS,
   DEFAULT_RECALL_QUALITY_POLICY,
+  DEFAULT_RUNTIME_MAINTENANCE_MAX_TOKENS,
+  DEFAULT_RUNTIME_MEMORY_LIMIT_BYTES,
+  DEFAULT_RUNTIME_USER_LIMIT_BYTES,
   DEFAULT_TIMEOUT_MS,
+  MAX_RUNTIME_MAINTENANCE_MAX_TOKENS,
+  MAX_RUNTIME_MEMORY_LIMIT_BYTES,
 } from './config-values.ts'
 import type {
   Config as SharedConfig,
@@ -26,6 +31,7 @@ import type {
   RecallQualityConfig,
   ResolvedConfig as SharedResolvedConfig,
   ResolvedInteractionConfig as SharedResolvedInteractionConfig,
+  RuntimeMemoryConfig,
   ResolvedTaskAgentModelConfig,
   TaskAgentModelConfig,
 } from './shared/contracts.ts'
@@ -41,7 +47,12 @@ export {
   DEFAULT_RECALL_MAX_MEDIUM_RESULTS,
   DEFAULT_RECALL_MAX_UNKNOWN_RESULTS,
   DEFAULT_RECALL_QUALITY_POLICY,
+  DEFAULT_RUNTIME_MAINTENANCE_MAX_TOKENS,
+  DEFAULT_RUNTIME_MEMORY_LIMIT_BYTES,
+  DEFAULT_RUNTIME_USER_LIMIT_BYTES,
   DEFAULT_TIMEOUT_MS,
+  MAX_RUNTIME_MAINTENANCE_MAX_TOKENS,
+  MAX_RUNTIME_MEMORY_LIMIT_BYTES,
 } from './config-values.ts'
 export type Config = SharedConfig
 export type CustomPackConfig = SharedCustomPackConfig
@@ -92,6 +103,12 @@ const RecallQualitySchema: z<RecallQualityConfig> = z.object({
   maxUnknownResults: z.number().step(1).min(0).max(50).default(DEFAULT_RECALL_MAX_UNKNOWN_RESULTS),
 })
 
+const RuntimeMemorySchema: z<RuntimeMemoryConfig> = z.object({
+  memoryLimitBytes: z.number().step(1).min(1).max(MAX_RUNTIME_MEMORY_LIMIT_BYTES).default(DEFAULT_RUNTIME_MEMORY_LIMIT_BYTES),
+  userLimitBytes: z.number().step(1).min(1).max(MAX_RUNTIME_MEMORY_LIMIT_BYTES).default(DEFAULT_RUNTIME_USER_LIMIT_BYTES),
+  maintenanceMaxTokens: z.number().step(1).min(1).max(MAX_RUNTIME_MAINTENANCE_MAX_TOKENS).default(DEFAULT_RUNTIME_MAINTENANCE_MAX_TOKENS),
+})
+
 const MemoryParticipationModeSchema = z.union(['off', 'manual', 'automatic'] as const)
 const MemoryLayerConfigSchema = z.object({
   enabled: z.boolean(),
@@ -124,6 +141,11 @@ export const Config: z<Config> = z.object({
   store: z.string(),
   timeoutMs: z.number().step(1).min(100).max(120_000).default(DEFAULT_TIMEOUT_MS),
   defaultRecallLimit: z.number().step(1).min(1).max(50).default(DEFAULT_RECALL_LIMIT),
+  runtimeMemory: RuntimeMemorySchema.default({
+    memoryLimitBytes: DEFAULT_RUNTIME_MEMORY_LIMIT_BYTES,
+    userLimitBytes: DEFAULT_RUNTIME_USER_LIMIT_BYTES,
+    maintenanceMaxTokens: DEFAULT_RUNTIME_MAINTENANCE_MAX_TOKENS,
+  }),
   embedding: MnemonEmbeddingSchema.default({
     enabled: false,
     endpoint: DEFAULT_EMBEDDING_ENDPOINT,
@@ -290,6 +312,22 @@ function resolveRecallQuality(value: RecallQualityConfig | undefined): SharedRes
   return { policy, lowScoreThreshold, highScoreThreshold, candidateMultiplier, maxMediumResults, maxUnknownResults }
 }
 
+function resolveRuntimeMemory(value: RuntimeMemoryConfig | undefined): SharedResolvedConfig['runtimeMemory'] {
+  const memoryLimitBytes = value?.memoryLimitBytes ?? DEFAULT_RUNTIME_MEMORY_LIMIT_BYTES
+  const userLimitBytes = value?.userLimitBytes ?? DEFAULT_RUNTIME_USER_LIMIT_BYTES
+  const maintenanceMaxTokens = value?.maintenanceMaxTokens ?? DEFAULT_RUNTIME_MAINTENANCE_MAX_TOKENS
+  if (!Number.isInteger(memoryLimitBytes) || memoryLimitBytes < 1 || memoryLimitBytes > MAX_RUNTIME_MEMORY_LIMIT_BYTES) {
+    throw new Error(`dsh-mnemon: Runtime MEMORY.md limit must be an integer within 1..${MAX_RUNTIME_MEMORY_LIMIT_BYTES} bytes`)
+  }
+  if (!Number.isInteger(userLimitBytes) || userLimitBytes < 1 || userLimitBytes > MAX_RUNTIME_MEMORY_LIMIT_BYTES) {
+    throw new Error(`dsh-mnemon: Runtime USER.md limit must be an integer within 1..${MAX_RUNTIME_MEMORY_LIMIT_BYTES} bytes`)
+  }
+  if (!Number.isInteger(maintenanceMaxTokens) || maintenanceMaxTokens < 1 || maintenanceMaxTokens > MAX_RUNTIME_MAINTENANCE_MAX_TOKENS) {
+    throw new Error(`dsh-mnemon: Runtime maintenance maxTokens must be an integer within 1..${MAX_RUNTIME_MAINTENANCE_MAX_TOKENS}`)
+  }
+  return { memoryLimitBytes, userLimitBytes, maintenanceMaxTokens }
+}
+
 const MEMORY_COMPONENT_ID = /^[a-z][a-z0-9-]{0,127}$/u
 const MEMORY_PARTICIPATION_MODES = new Set(['off', 'manual', 'automatic'])
 
@@ -353,6 +391,7 @@ export function resolveConfig(config: Config = {}): ResolvedConfig {
     ...(store === undefined ? {} : { store }),
     timeoutMs: config.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     defaultRecallLimit: config.defaultRecallLimit ?? DEFAULT_RECALL_LIMIT,
+    runtimeMemory: resolveRuntimeMemory(config.runtimeMemory),
     embedding: resolveEmbedding(config.embedding),
     memoryTopology: resolveMemoryTopology(config.memoryTopology),
     recallQuality: resolveRecallQuality(config.recallQuality),

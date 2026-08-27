@@ -113,6 +113,33 @@ describe('RuntimeMemoryController', () => {
     expect(readFileSync(controller.userPath, 'utf8')).toBe(beforeMarkdown)
   })
 
+  it('applies configured USER.md and MEMORY.md byte limits to every Runtime view and mutation', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'dsh-mnemon-runtime-configured-'))
+    directories.push(directory)
+    const controller = new RuntimeMemoryController(
+      { effectiveDataDir: () => directory },
+      undefined,
+      undefined,
+      { memory: 20_480, user: 10_240 },
+    )
+
+    await expect(controller.mutate({ action: 'add', target: 'user', content: 'u'.repeat(6_000) }))
+      .resolves.toMatchObject({ usage: { used: 6_000, limit: 10_240 } })
+    await controller.mutate({ action: 'add', target: 'memory', content: 'a'.repeat(8_000) })
+    await expect(controller.mutate({ action: 'add', target: 'memory', content: 'b'.repeat(8_000) }))
+      .resolves.toMatchObject({ usage: { used: 16_004, limit: 20_480 } })
+
+    expect(controller.snapshot().targets).toMatchObject({
+      user: { used: 6_000, limit: 10_240 },
+      memory: { used: 16_004, limit: 20_480 },
+    })
+    expect((await controller.planMaintenance({ action: 'add', target: 'memory', content: 'c'.repeat(5_000) }))).toMatchObject({
+      projected: 21_008,
+      limit: 20_480,
+      requiresMaintenance: true,
+    })
+  })
+
   it('repairs derived files from memories.json when a controller starts', async () => {
     const { directory, controller } = fixture()
     await controller.mutate({ action: 'add', target: 'memory', content: 'source-owned value' })

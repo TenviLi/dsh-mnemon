@@ -90,6 +90,35 @@ describe('Mnemon Pack', () => {
     }
   })
 
+  it('validates Runtime Pack capacity against the configured target limits', async () => {
+    const sourceRoot = temporary('pack-configured-runtime-source')
+    const sourceConfig = resolveConfig({
+      storageScope: 'custom',
+      dataDir: sourceRoot,
+      cliPath: '/fake/mnemon',
+      runtimeMemory: { memoryLimitBytes: 20_480 },
+    })
+    const sourceRunner = createRunner(sourceConfig, async () => ({ stdout: '{}', stderr: '', exitCode: 0 }))
+    const runtime = new RuntimeMemoryController(sourceRunner, now, undefined, { memory: 20_480, user: 4_096 })
+    await runtime.mutate({ action: 'add', target: 'memory', content: 'a'.repeat(8_000) })
+    await runtime.mutate({ action: 'add', target: 'memory', content: 'b'.repeat(8_000) })
+    const exported = await new MnemonPackManager(sourceRunner, sourceConfig, undefined, now).exportPack('runtime')
+
+    const defaultTarget = runner(temporary('pack-default-runtime-target'))
+    expect(() => new MnemonPackManager(defaultTarget.runner, defaultTarget.config).inspectPack(exported.base64))
+      .toThrow('10240 byte limit')
+
+    const configuredRoot = temporary('pack-configured-runtime-target')
+    const configuredTarget = resolveConfig({
+      storageScope: 'custom',
+      dataDir: configuredRoot,
+      cliPath: '/fake/mnemon',
+      runtimeMemory: { memoryLimitBytes: 20_480 },
+    })
+    const configuredRunner = createRunner(configuredTarget, async () => ({ stdout: '{}', stderr: '', exitCode: 0 }))
+    expect(new MnemonPackManager(configuredRunner, configuredTarget).inspectPack(exported.base64).manifest.scope).toBe('runtime')
+  })
+
   it('keeps remote provider connections and credentials outside Mnemon Packs', async () => {
     const source = await fixture('pack-provider-boundary', 22)
     const registry = new MemoryBodyRegistry(source.runner, true, now)

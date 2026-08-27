@@ -25,6 +25,10 @@ mnemon:
   # store: legacy-store          # compatibility discovery hint, not a regular routing target
   timeoutMs: 10000
   defaultRecallLimit: 10
+  runtimeMemory:
+    memoryLimitBytes: 10240
+    userLimitBytes: 4096
+    maintenanceMaxTokens: 8192
   embedding:
     enabled: false
     endpoint: http://localhost:11434
@@ -66,6 +70,9 @@ mnemon:
 | `store` | unset | `[A-Za-z0-9][A-Za-z0-9_-]*` | Compatibility discovery/preference hint for legacy Stores; semantic operations are routed through Memory Spaces |
 | `timeoutMs` | `10000` | 100–120000 ms | Hard timeout for a single CLI call |
 | `defaultRecallLimit` | `10` | 1–50 | Default recall count for the service and UI; individual entry points may impose a lower limit |
+| `runtimeMemory.memoryLimitBytes` | `10240` | 1–1048576 bytes | UTF-8 byte limit for the complete `MEMORY.md` projection |
+| `runtimeMemory.userLimitBytes` | `4096` | 1–1048576 bytes | UTF-8 byte limit for the complete `USER.md` projection |
+| `runtimeMemory.maintenanceMaxTokens` | `8192` | 1–1000000 tokens | Completion-token budget for Runtime migration and compaction workers; does not change Document archive or metadata-maintenance budgets |
 | `embedding` | `{ enabled: false, endpoint: http://localhost:11434, model: nomic-embed-text }` | enabled + HTTP(S) endpoint + model | When enabled, the Host injects the saved endpoint and model into every Mnemon CLI child process; when disabled, existing Host environment and Mnemon defaults remain untouched |
 | `memoryTopology.layers.<id>.enabled` | `true` for the three defaults | boolean | Whether the Layer participates; disabling never deletes or migrates existing data |
 | `recallQuality.policy` | `strict-v1` | registered policy id | Deterministic policy applied before recall content is serialized to an Agent or client |
@@ -87,6 +94,24 @@ mnemon:
 | `mnemon-ui.saveAction` | `true` | boolean | “Save to memory” icon and confirmation on finalized assistant replies; on by default, **applies live after saving** |
 
 Both the `mnemon` Host/storage namespace and the `mnemon-ui` browser-presentation namespace apply live. The storage root switches atomically only after the new runtime graph initializes successfully. Legacy `mnemon.conversationInteraction` values remain a migration default, but new saves write only to `mnemon-ui`.
+
+### Runtime Memory budgets
+
+Long conversations can raise the two hot-memory byte limits and the bounded migration/compaction worker budget without patching generated package files:
+
+```yaml
+mnemon:
+  runtimeMemory:
+    memoryLimitBytes: 20480
+    userLimitBytes: 10240
+    maintenanceMaxTokens: 32768
+```
+
+The defaults preserve the released 10240 / 4096 / 8192 behavior. Saving the block builds a new runtime generation, so subsequent Runtime reads, writes, capacity maintenance, and Mnemon Pack validation use the same limits. Existing entries and the `memories.json` format are unchanged. Lowering a byte limit below current usage does not delete data; the Runtime view reports the over-capacity state and further writes require compaction or a higher limit. Rollback only requires removing the block or restoring the defaults.
+
+The isolated DSH Web comparison below shows the default USER 4.0 KB / MEMORY 10.0 KB limits first, followed by the active USER 10.0 KB / MEMORY 20.0 KB configuration. Both captures use an empty temporary root and contain no private memory.
+
+[![Runtime Memory default and configured capacity comparison](../assets/screenshots/runtime-memory-capacity-configuration.png)](../assets/screenshots/runtime-memory-capacity-configuration.png)
 
 ### Mnemon Native embeddings
 

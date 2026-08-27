@@ -100,6 +100,21 @@ export interface RecallQualityConfig {
   maxUnknownResults?: number
 }
 
+export interface RuntimeMemoryConfig {
+  /** Maximum UTF-8 bytes projected into MEMORY.md. */
+  memoryLimitBytes?: number
+  /** Maximum UTF-8 bytes projected into USER.md. */
+  userLimitBytes?: number
+  /** Completion-token budget for Runtime migration and compaction workers. */
+  maintenanceMaxTokens?: number
+}
+
+export interface ResolvedRuntimeMemoryConfig {
+  memoryLimitBytes: number
+  userLimitBytes: number
+  maintenanceMaxTokens: number
+}
+
 export interface ResolvedRecallQualityConfig {
   policy: string
   lowScoreThreshold: number
@@ -118,6 +133,7 @@ export interface Config {
   store?: string
   timeoutMs?: number
   defaultRecallLimit?: number
+  runtimeMemory?: RuntimeMemoryConfig
   /** Optional DSH-owned overrides injected into every Mnemon CLI process. */
   embedding?: MnemonEmbeddingConfig
   memoryTopology?: MemoryTopologyConfig
@@ -207,6 +223,7 @@ export interface ResolvedConfig {
   store?: string
   timeoutMs: number
   defaultRecallLimit: number
+  runtimeMemory: ResolvedRuntimeMemoryConfig
   embedding: ResolvedMnemonEmbeddingConfig
   memoryTopology: ResolvedMemoryTopologyConfig
   recallQuality: ResolvedRecallQualityConfig

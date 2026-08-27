@@ -25,6 +25,10 @@ mnemon:
   # store: legacy-store          # 兼容发现提示，不是常规路由目标
   timeoutMs: 10000
   defaultRecallLimit: 10
+  runtimeMemory:
+    memoryLimitBytes: 10240
+    userLimitBytes: 4096
+    maintenanceMaxTokens: 8192
   embedding:
     enabled: false
     endpoint: http://localhost:11434
@@ -66,6 +70,9 @@ mnemon:
 | `store` | 未设置 | `[A-Za-z0-9][A-Za-z0-9_-]*` | 用于旧 Store 的兼容发现/首选提示；语义操作由 Memory Space 路由 |
 | `timeoutMs` | `10000` | 100–120000 ms | 单次 CLI 硬超时 |
 | `defaultRecallLimit` | `10` | 1–50 | 服务和 UI 默认召回条数；不同入口可能再收紧 |
+| `runtimeMemory.memoryLimitBytes` | `10240` | 1–1048576 字节 | 完整 `MEMORY.md` 投影的 UTF-8 字节上限 |
+| `runtimeMemory.userLimitBytes` | `4096` | 1–1048576 字节 | 完整 `USER.md` 投影的 UTF-8 字节上限 |
+| `runtimeMemory.maintenanceMaxTokens` | `8192` | 1–1000000 tokens | Runtime 迁移与压缩 worker 的完成 token 预算；不改变项目档案归档与元信息维护预算 |
 | `embedding` | `{ enabled: false, endpoint: http://localhost:11434, model: nomic-embed-text }` | enabled + HTTP(S) endpoint + model | 开启后，Host 为每个 Mnemon CLI 子进程注入保存的 endpoint 与模型；关闭后不干预既有 Host 环境和 Mnemon 默认值 |
 | `memoryTopology.layers.<id>.enabled` | 三个默认层为 `true` | boolean | 是否让该 Layer 参与；关闭不会删除或迁移已有数据 |
 | `recallQuality.policy` | `strict-v1` | 已注册策略 ID | 在召回正文序列化给 Agent 或客户端前执行的确定性策略 |
@@ -87,6 +94,24 @@ mnemon:
 | `mnemon-ui.saveAction` | `true` | boolean | 已定稿助手回复旁的「存入记忆」图标与确认弹窗；默认开启，**保存后实时生效** |
 
 `mnemon` Host/存储命名空间和 `mnemon-ui` 浏览器呈现命名空间都实时生效。存储根只会在新运行图初始化成功后原子切换；旧版 `mnemon.conversationInteraction` 仍会作为迁移默认值读取，但新保存只写入 `mnemon-ui`。
+
+### Runtime Memory 容量与维护预算
+
+长会话可以提高两类热记忆的字节上限和有界迁移/压缩 worker 预算，无需再补丁修改生成的包文件：
+
+```yaml
+mnemon:
+  runtimeMemory:
+    memoryLimitBytes: 20480
+    userLimitBytes: 10240
+    maintenanceMaxTokens: 32768
+```
+
+默认值保持已发布版本的 10240 / 4096 / 8192 行为。保存后会构建新的运行图，后续 Runtime 读取、写入、容量维护与 Mnemon Pack 校验统一使用这组上限。已有条目与 `memories.json` 格式不变。若把字节上限降低到当前用量以下，不会删除数据；Runtime 视图会显示超容状态，后续写入需要先压缩或重新提高上限。回滚只需删除该配置块或恢复默认值。
+
+下方隔离 DSH Web 对比图先展示默认 USER 4.0 KB / MEMORY 10.0 KB，再展示已生效的 USER 10.0 KB / MEMORY 20.0 KB 配置。两张截图均使用空的临时根，不含私有记忆。
+
+[![Runtime Memory 默认容量与配置后容量对比](../assets/screenshots/runtime-memory-capacity-configuration.png)](../assets/screenshots/runtime-memory-capacity-configuration.png)
 
 ### Mnemon Native 嵌入
 

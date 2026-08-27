@@ -53,6 +53,17 @@ describe('LiveMnemonRuntime workspace routing', () => {
     expect(descriptor.catalog.adapters.map(adapter => adapter.id)).toEqual(expect.arrayContaining(['mnemon-native', 'openviking', 'supermemory']))
   })
 
+  it('wires configured Runtime Memory limits into each runtime generation', () => {
+    const runtime = createRuntimeGraph(resolveConfig({
+      storageScope: 'global',
+      cliPath: '/fake/mnemon',
+      runtimeMemory: { memoryLimitBytes: 20_480, userLimitBytes: 10_240, maintenanceMaxTokens: 32_768 },
+    }))
+    expect(runtime.runtimeMemory.limits).toEqual({ memory: 20_480, user: 10_240 })
+    expect(runtime.config.runtimeMemory.maintenanceMaxTokens).toBe(32_768)
+    runtime.dispose()
+  })
+
   it('discovers extension layers as disabled topology candidates until explicitly configured', () => {
     const extensions = new MemoryExtensionHost()
     extensions.register({

@@ -19,7 +19,7 @@ import { homedir } from 'node:os'
 import { strFromU8, strToU8, unzipSync, zipSync, type Unzipped, type Zippable } from 'fflate'
 import type { ResolvedConfig } from './config.ts'
 import { DOCUMENTS_ACTIVE_LIMIT_BYTES, DOCUMENTS_VERSION, type DocumentRecord } from './documents.ts'
-import { RUNTIME_ENTRY_DELIMITER, RUNTIME_MEMORY_LIMITS, RUNTIME_MEMORY_VERSION, type RuntimeMemoryEntry, type RuntimeMemoryTarget } from './runtime-memory.ts'
+import { RUNTIME_ENTRY_DELIMITER, RUNTIME_MEMORY_LIMITS, RUNTIME_MEMORY_VERSION, type RuntimeMemoryEntry, type RuntimeMemoryLimits, type RuntimeMemoryTarget } from './runtime-memory.ts'
 import type { MnemonRunner } from './runner.ts'
 import type { MnemonPackComponent, MnemonPackComponentSummary, MnemonPackExport, MnemonPackImportMode, MnemonPackImportResult, MnemonPackManifest, MnemonPackPreview, MnemonPackScope } from './shared/contracts.ts'
 
@@ -174,7 +174,7 @@ function decodeArchive(base64: string): Buffer {
   return bytes
 }
 
-function parseArchive(base64: string): ParsedPack {
+function parseArchive(base64: string, runtimeLimits: RuntimeMemoryLimits = RUNTIME_MEMORY_LIMITS): ParsedPack {
   const archive = decodeArchive(base64)
   let count = 0
   let expandedBytes = 0
@@ -207,12 +207,12 @@ function parseArchive(base64: string): ParsedPack {
     const expected = checksumFiles[path]
     if (typeof expected !== 'string' || expected !== sha256(files[path]!)) throw new Error(`Mnemon Pack checksum mismatch: ${path}`)
   }
-  validatePackPayload(files, manifest.components)
-  const actualSummary = summaryFor(manifest.components, files)
+  validatePackPayload(files, manifest.components, runtimeLimits)
+  const actualSummary = summaryFor(manifest.components, files, runtimeLimits)
   return { archiveBytes: archive.length, expandedBytes, files, manifest: { ...manifest, summary: actualSummary } }
 }
 
-function parseRuntime(value: unknown): RuntimeFile {
+function parseRuntime(value: unknown, limits: RuntimeMemoryLimits = RUNTIME_MEMORY_LIMITS): RuntimeFile {
   const source = record(value)
   if (source?.version !== RUNTIME_MEMORY_VERSION || !Array.isArray(source.entries)) throw new Error('runtime memories.json is invalid')
   const entries = source.entries.map((raw): RuntimeMemoryEntry => {
@@ -227,7 +227,7 @@ function parseRuntime(value: unknown): RuntimeFile {
   })
   for (const target of ['user', 'memory'] as const) {
     const used = runtimeBytes(entries, target)
-    if (used > RUNTIME_MEMORY_LIMITS[target]) throw new Error(`runtime ${target} memory exceeds its ${RUNTIME_MEMORY_LIMITS[target]} byte limit`)
+    if (used > limits[target]) throw new Error(`runtime ${target} memory exceeds its ${limits[target]} byte limit`)
   }
   return { version: 1, entries }
 }
@@ -287,8 +287,8 @@ function validDatabase(bytes: Uint8Array, path: string): void {
   if (bytes.length < 100 || !Buffer.from(bytes.subarray(0, SQLITE_HEADER.length)).equals(SQLITE_HEADER)) throw new Error(`${path} is not a SQLite mnemon.db`)
 }
 
-function validatePackPayload(files: Unzipped, components: MnemonPackComponent[]): void {
-  if (components.includes('runtime')) parseRuntime(json(files['payload/runtime/memories.json'] ?? new Uint8Array(), 'payload/runtime/memories.json'))
+function validatePackPayload(files: Unzipped, components: MnemonPackComponent[], runtimeLimits: RuntimeMemoryLimits): void {
+  if (components.includes('runtime')) parseRuntime(json(files['payload/runtime/memories.json'] ?? new Uint8Array(), 'payload/runtime/memories.json'), runtimeLimits)
   if (components.includes('documents')) {
     const index = parseDocumentIndex(json(files['payload/documents/index.json'] ?? new Uint8Array(), 'payload/documents/index.json'))
     for (const document of index.documents) {
@@ -372,9 +372,9 @@ function emptyRuntime(): RuntimeFile {
   return { version: 1, entries: [] }
 }
 
-function readCurrentRuntime(root: string): RuntimeFile {
+function readCurrentRuntime(root: string, limits: RuntimeMemoryLimits = RUNTIME_MEMORY_LIMITS): RuntimeFile {
   const path = join(root, 'runtime', 'memories.json')
-  return existsSync(path) ? parseRuntime(JSON.parse(readFileSync(path, 'utf8')) as unknown) : emptyRuntime()
+  return existsSync(path) ? parseRuntime(JSON.parse(readFileSync(path, 'utf8')) as unknown, limits) : emptyRuntime()
 }
 
 function writeRuntime(directory: string, file: RuntimeFile): void {
@@ -461,24 +461,24 @@ function writeRegistry(directory: string, registry: BodyRegistry, databases: Map
   writeFileSync(join(directory, '.dsh-memory-bodies.json'), `${JSON.stringify(registry, null, 2)}\n`, { mode: 0o600 })
 }
 
-function componentItems(component: MnemonPackComponent, files: Record<string, Uint8Array>): number {
-  if (component === 'runtime') return parseRuntime(json(files['payload/runtime/memories.json']!, 'payload/runtime/memories.json')).entries.length
+function componentItems(component: MnemonPackComponent, files: Record<string, Uint8Array>, runtimeLimits: RuntimeMemoryLimits = RUNTIME_MEMORY_LIMITS): number {
+  if (component === 'runtime') return parseRuntime(json(files['payload/runtime/memories.json']!, 'payload/runtime/memories.json'), runtimeLimits).entries.length
   if (component === 'documents') return parseDocumentIndex(json(files['payload/documents/index.json']!, 'payload/documents/index.json')).documents.length
   return parseRegistry(json(files['payload/data/.dsh-memory-bodies.json']!, 'payload/data/.dsh-memory-bodies.json')).bodies.length
 }
 
-function summaryFor(components: MnemonPackComponent[], files: Record<string, Uint8Array>): MnemonPackComponentSummary[] {
+function summaryFor(components: MnemonPackComponent[], files: Record<string, Uint8Array>, runtimeLimits: RuntimeMemoryLimits = RUNTIME_MEMORY_LIMITS): MnemonPackComponentSummary[] {
   return components.map(component => {
     const prefix = `payload/${COMPONENT_DIRECTORIES[component]}/`
     const entries = Object.entries(files).filter(([path]) => path.startsWith(prefix))
-    return { component, files: entries.length, bytes: entries.reduce((sum, [, value]) => sum + value.length, 0), items: componentItems(component, files) }
+    return { component, files: entries.length, bytes: entries.reduce((sum, [, value]) => sum + value.length, 0), items: componentItems(component, files, runtimeLimits) }
   })
 }
 
-function collectExport(root: string, components: MnemonPackComponent[]): Record<string, Uint8Array> {
+function collectExport(root: string, components: MnemonPackComponent[], runtimeLimits: RuntimeMemoryLimits = RUNTIME_MEMORY_LIMITS): Record<string, Uint8Array> {
   const files: Record<string, Uint8Array> = {}
   if (components.includes('runtime')) {
-    const runtime = readCurrentRuntime(root)
+    const runtime = readCurrentRuntime(root, runtimeLimits)
     files['payload/runtime/memories.json'] = strToU8(`${JSON.stringify(runtime, null, 2)}\n`)
     files['payload/runtime/USER.md'] = strToU8(runtimeProjection(runtime.entries, 'user'))
     files['payload/runtime/MEMORY.md'] = strToU8(runtimeProjection(runtime.entries, 'memory'))
@@ -496,16 +496,16 @@ function collectExport(root: string, components: MnemonPackComponent[]): Record<
   return files
 }
 
-function mergeRuntime(root: string, pack: ParsedPack): RuntimeFile {
-  const current = readCurrentRuntime(root)
-  const incoming = parseRuntime(json(pack.files['payload/runtime/memories.json']!, 'payload/runtime/memories.json'))
+function mergeRuntime(root: string, pack: ParsedPack, runtimeLimits: RuntimeMemoryLimits): RuntimeFile {
+  const current = readCurrentRuntime(root, runtimeLimits)
+  const incoming = parseRuntime(json(pack.files['payload/runtime/memories.json']!, 'payload/runtime/memories.json'), runtimeLimits)
   const keys = new Set(current.entries.map(entry => `${entry.target}\0${entry.content}`))
   const entries = [...current.entries]
   for (const entry of incoming.entries) {
     const key = `${entry.target}\0${entry.content}`
     if (!keys.has(key)) { keys.add(key); entries.push(entry) }
   }
-  return parseRuntime({ version: 1, entries })
+  return parseRuntime({ version: 1, entries }, runtimeLimits)
 }
 
 function mergeDocuments(root: string, pack: ParsedPack): { index: DocumentIndex; files: Map<string, Uint8Array> } {
@@ -576,12 +576,12 @@ function reconcilePersistedStore(root: string): void {
   }
 }
 
-function stageImport(root: string, pack: ParsedPack, components: MnemonPackComponent[], mode: MnemonPackImportMode): string {
+function stageImport(root: string, pack: ParsedPack, components: MnemonPackComponent[], mode: MnemonPackImportMode, runtimeLimits: RuntimeMemoryLimits): string {
   const staging = join(root, `.dsh-pack-stage-${randomUUID()}`)
   mkdirSync(staging, { recursive: true, mode: 0o700 })
   try {
     if (components.includes('runtime')) {
-      const runtime = mode === 'merge' ? mergeRuntime(root, pack) : parseRuntime(json(pack.files['payload/runtime/memories.json']!, 'payload/runtime/memories.json'))
+      const runtime = mode === 'merge' ? mergeRuntime(root, pack, runtimeLimits) : parseRuntime(json(pack.files['payload/runtime/memories.json']!, 'payload/runtime/memories.json'), runtimeLimits)
       writeRuntime(join(staging, 'runtime'), runtime)
     }
     if (components.includes('documents')) {
@@ -662,14 +662,19 @@ function safeName(value: string | undefined): string | undefined {
 /** Native, checksummed import/export for the one currently effective Mnemon root. */
 export class MnemonPackManager {
   private readonly root: string
+  private readonly runtimeLimits: RuntimeMemoryLimits
 
   constructor(
     private readonly runner: MnemonRunner,
-    private readonly config: Pick<ResolvedConfig, 'storageScope'>,
+    private readonly config: Pick<ResolvedConfig, 'storageScope' | 'runtimeMemory'>,
     private readonly afterImport: (components: MnemonPackComponent[]) => void = () => {},
     private readonly now: () => Date = () => new Date(),
   ) {
     this.root = resolve(runner.effectiveDataDir())
+    this.runtimeLimits = {
+      memory: config.runtimeMemory.memoryLimitBytes,
+      user: config.runtimeMemory.userLimitBytes,
+    }
   }
 
   target(): { root: string; scope: ResolvedConfig['storageScope'] } {
@@ -681,9 +686,9 @@ export class MnemonPackManager {
     return this.runner.withExclusive(async () => {
       await new Promise<void>(resolveReady => setImmediate(resolveReady))
       return withLocks(this.root, components, () => {
-        const payload = collectExport(this.root, components)
+        const payload = collectExport(this.root, components, this.runtimeLimits)
         const exportedAt = this.now().toISOString()
-        const summary = summaryFor(components, payload)
+        const summary = summaryFor(components, payload, this.runtimeLimits)
         const manifest: MnemonPackManifest = {
           format: MNEMON_PACK_FORMAT, version: MNEMON_PACK_VERSION, scope, exportedAt,
           source: { plugin: 'dsh-mnemon', pluginVersion: '0.1.0' }, components, summary,
@@ -706,7 +711,7 @@ export class MnemonPackManager {
   }
 
   inspectPack(base64: string, fileName?: string): MnemonPackPreview {
-    const pack = parseArchive(base64)
+    const pack = parseArchive(base64, this.runtimeLimits)
     const sanitizedName = safeName(fileName)
     return {
       ...(sanitizedName === undefined ? {} : { fileName: sanitizedName }),
@@ -717,7 +722,7 @@ export class MnemonPackManager {
   }
 
   async importPack(base64: string, options: { mode: MnemonPackImportMode; components?: MnemonPackComponent[] }): Promise<MnemonPackImportResult> {
-    const pack = parseArchive(base64)
+    const pack = parseArchive(base64, this.runtimeLimits)
     if (options.mode !== 'merge' && options.mode !== 'replace') throw new Error('Pack import mode must be merge or replace')
     if (options.components !== undefined && (new Set(options.components).size !== options.components.length || options.components.some(component => !COMPONENT_ORDER.includes(component)))) {
       throw new Error('requested import components are invalid')
@@ -728,7 +733,7 @@ export class MnemonPackManager {
       await new Promise<void>(resolveReady => setImmediate(resolveReady))
       mkdirSync(this.root, { recursive: true, mode: 0o700 })
       return withLocks(this.root, components, () => {
-        const staging = stageImport(this.root, pack, components, options.mode)
+        const staging = stageImport(this.root, pack, components, options.mode, this.runtimeLimits)
         commitStaging(this.root, staging, components)
         this.afterImport(components)
         return {
