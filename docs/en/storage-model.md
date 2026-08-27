@@ -51,7 +51,7 @@ follow an exact cold reference when full text is required
     +-- memory-providers.json     # third-party connection control plane; 0600; excluded from Mnemon Packs
 ```
 
-`storageScope` determines the entire root, not just the Mnemon databases. The `workspace` scope resolves an independent `<workspace>/.mnemon` for every registered DSH workspace. The Web inspection target and current-session execution target are independent; only the latter drives agents, tools, and lifecycle hooks. `state/memory-providers.json` stores third-party endpoints, target URIs, identities, and an optional API key. Its mode is `0600`; the Host returns only whether a key is configured, never the key itself.
+`storageScope` determines the entire root, not just the Mnemon databases. The `workspace` scope resolves an independent `<workspace>/.mnemon` for every registered DSH workspace. The opt-in `runtimeUserScope=global` is the sole split-root exception: Runtime reads USER.md from the global root while MEMORY.md and every other component remain under the selected root. The Web inspection target and current-session execution target are independent; only the latter drives agents, tools, and lifecycle hooks. `state/memory-providers.json` stores third-party endpoints, target URIs, identities, and an optional API key. Its mode is `0600`; the Host returns only whether a key is configured, never the key itself.
 
 ## Runtime Memory
 
@@ -66,7 +66,7 @@ There is currently no `daily` target.
 
 ### Source of Truth and Projections
 
-`runtime/memories.json` is the sole source of truth. Each record contains:
+Within one root, `runtime/memories.json` is the sole source of truth. With `runtimeUserScope=global`, the effective snapshot combines only `target=user` entries from the global source with only `target=memory` entries from the selected source. Both JSON files and both Markdown projection pairs remain complete and unchanged; filtering occurs only in the effective Runtime controller. Each record contains:
 
 ```text
 content

@@ -380,18 +380,22 @@ function sleepSync(milliseconds: number): void {
 export class RuntimeMemoryController {
   readonly directory: string
   readonly sourcePath: string
+  readonly userSourcePath: string
   readonly memoryPath: string
   readonly userPath: string
   readonly lockPath: string
   readonly limits: RuntimeMemoryLimits
 
   private queue: Promise<unknown> = Promise.resolve()
+  private readonly localUserPath: string
+  private readonly userController: RuntimeMemoryController | undefined
 
   constructor(
     runner: Pick<MnemonRunner, 'effectiveDataDir'>,
     private readonly now: () => Date = () => new Date(),
     private readonly recordCommit?: AuthorityCommitRecorder,
     limits: RuntimeMemoryLimits = RUNTIME_MEMORY_LIMITS,
+    userRunner?: Pick<MnemonRunner, 'effectiveDataDir'>,
   ) {
     for (const [target, limit] of Object.entries(limits)) {
       if (!Number.isInteger(limit) || limit < 1 || limit > MAX_RUNTIME_MEMORY_LIMIT_BYTES) {
@@ -402,25 +406,28 @@ export class RuntimeMemoryController {
     this.directory = join(runner.effectiveDataDir(), 'runtime')
     this.sourcePath = join(this.directory, 'memories.json')
     this.memoryPath = join(this.directory, 'MEMORY.md')
-    this.userPath = join(this.directory, 'USER.md')
+    this.localUserPath = join(this.directory, 'USER.md')
     this.lockPath = join(this.directory, '.memories.lock')
+    const userDirectory = userRunner === undefined ? this.directory : join(userRunner.effectiveDataDir(), 'runtime')
+    this.userController = userDirectory === this.directory || userRunner === undefined
+      ? undefined
+      : new RuntimeMemoryController(userRunner, now, recordCommit, this.limits)
+    this.userPath = this.userController?.userPath ?? this.localUserPath
+    this.userSourcePath = this.userController?.sourcePath ?? this.sourcePath
     this.initialize()
   }
 
   snapshot(): RuntimeMemorySnapshot {
-    const file = this.readSource()
-    const entries = file.entries.map(entry => ({ ...entry }))
-    return {
-      directory: this.directory,
-      sourcePath: this.sourcePath,
-      revision: revision(file),
-      generatedAt: this.now().toISOString(),
-      entries,
-      targets: {
-        memory: this.targetView(entries, 'memory'),
-        user: this.targetView(entries, 'user'),
-      },
-    }
+    const local = this.readSource()
+    if (this.userController === undefined) return this.snapshotUnlocked(local)
+    const global = this.userController.readSource()
+    return this.snapshotUnlocked({
+      version: RUNTIME_MEMORY_VERSION,
+      entries: [
+        ...global.entries.filter(entry => entry.target === 'user'),
+        ...local.entries.filter(entry => entry.target === 'memory'),
+      ],
+    })
   }
 
   contextText(branch?: string): string {
@@ -428,44 +435,44 @@ export class RuntimeMemoryController {
   }
 
   /**
-   * Read the exact Runtime revision and its prompt projection under one lock.
+   * Read the exact Runtime revision and its prompt projection from each
+   * configured authority root.
    * When a git branch is supplied, target=memory entries scoped to other
    * branches are hidden from the projection; the on-disk Markdown files and
    * the source JSON always remain complete.
    */
   contextProjection(branch?: string): RuntimeMemoryContextProjection {
     const branchScope = scopeBranch(branch)
-    const { snapshot, user, memory, hidden } = this.withLock(() => {
-      const file = this.readSource()
-      this.repairProjections(file)
-      const entries = file.entries.map(entry => ({ ...entry }))
-      const visible = branchScope === undefined
-        ? entries
-        : entries.filter(entry => entry.target === 'user' || entryMatchesBranch(entry, branchScope!))
-      return {
-        snapshot: {
+    const local = this.localContextProjection(branchScope)
+    const global = this.userController?.localContextProjection()
+    const user = global?.user ?? local.user
+    const memory = local.memory
+    const entries = global === undefined
+      ? local.snapshot.entries
+      : [
+          ...global.snapshot.entries.filter(entry => entry.target === 'user'),
+          ...local.snapshot.entries.filter(entry => entry.target === 'memory'),
+        ]
+    const visibleMemory = local.snapshot.targets.memory
+    const visibleUser = global?.snapshot.targets.user ?? local.snapshot.targets.user
+    const snapshot = global === undefined
+      ? local.snapshot
+      : {
           directory: this.directory,
           sourcePath: this.sourcePath,
-          revision: revision(file),
+          revision: revision({ version: RUNTIME_MEMORY_VERSION, entries }),
           generatedAt: this.now().toISOString(),
           entries,
           targets: {
-            memory: this.targetView(visible, 'memory'),
-            user: this.targetView(visible, 'user'),
+            memory: { ...visibleMemory, markdownPath: this.memoryPath },
+            user: { ...visibleUser, markdownPath: this.userPath },
           },
-        } satisfies RuntimeMemorySnapshot,
-        user: readFileSync(this.userPath, 'utf8').trimEnd(),
-        memory: branchScope === undefined ? readFileSync(this.memoryPath, 'utf8').trimEnd() : markdown(visible, 'memory').trimEnd(),
-        hidden: branchScope === undefined ? 0 : entries.length - visible.length,
-      }
-    })
-    const visibleMemory = snapshot.targets.memory
-    const visibleUser = snapshot.targets.user
-    const storeMemory = this.targetView(snapshot.entries, 'memory')
-    const storeUser = this.targetView(snapshot.entries, 'user')
+        } satisfies RuntimeMemorySnapshot
+    const storeMemory = this.targetView(entries, 'memory')
+    const storeUser = this.targetView(entries, 'user')
     const branchLine = branchScope === undefined
       ? ''
-      : `\nGit branch: ${branchScope}${hidden > 0 ? ` (${hidden} branch-scoped entr${hidden === 1 ? 'y' : 'ies'} hidden)` : ''}`
+      : `\nGit branch: ${branchScope}${local.hidden > 0 ? ` (${local.hidden} branch-scoped entr${local.hidden === 1 ? 'y' : 'ies'} hidden)` : ''}`
     return {
       revision: snapshot.revision,
       text: `MNEMON RUNTIME MEMORY SNAPSHOT
@@ -483,7 +490,36 @@ ${memory || '(empty)'}
     }
   }
 
+  private localContextProjection(branch?: string): { snapshot: RuntimeMemorySnapshot; user: string; memory: string; hidden: number } {
+    const branchScope = scopeBranch(branch)
+    return this.withLock(() => {
+      const file = this.readSource()
+      this.repairProjections(file)
+      const entries = file.entries.map(entry => ({ ...entry }))
+      const visible = branchScope === undefined
+        ? entries
+        : entries.filter(entry => entry.target === 'user' || entryMatchesBranch(entry, branchScope))
+      return {
+        snapshot: {
+          directory: this.directory,
+          sourcePath: this.sourcePath,
+          revision: revision(file),
+          generatedAt: this.now().toISOString(),
+          entries,
+          targets: {
+            memory: this.targetView(visible, 'memory'),
+            user: this.targetView(visible, 'user'),
+          },
+        } satisfies RuntimeMemorySnapshot,
+        user: readFileSync(this.localUserPath, 'utf8').trimEnd(),
+        memory: branchScope === undefined ? readFileSync(this.memoryPath, 'utf8').trimEnd() : markdown(visible, 'memory').trimEnd(),
+        hidden: branchScope === undefined ? 0 : entries.length - visible.length,
+      }
+    })
+  }
+
   mutate(request: RuntimeMemoryMutation): Promise<RuntimeMemoryMutationResult> {
+    if (request.target === 'user' && this.userController !== undefined) return this.userController.mutate(request)
     const operation = this.queue.then(() => this.withLock(() => {
       const beforeRevision = revision(this.readSource())
       const result = this.mutateLocked(request)
@@ -506,6 +542,7 @@ ${memory || '(empty)'}
 
   /** Resolve exactly which committed entries survive a blocked mutation and are safe to compact. */
   planMaintenance(request: RuntimeMemoryMutation): Promise<RuntimeMemoryMaintenancePlan> {
+    if (request.target === 'user' && this.userController !== undefined) return this.userController.planMaintenance(request)
     const operation = this.queue.then(() => this.withLock(() => {
       const file = this.readSource()
       const prepared = prepareMutation(file.entries, request, this.now().toISOString())
@@ -539,6 +576,9 @@ ${memory || '(empty)'}
     maxCompactedBytes?: number,
     lineage: readonly MemoryMigrationLineage[] = [],
   ): Promise<RuntimeMemoryMutationResult> {
+    if (request.target === 'user' && this.userController !== undefined) {
+      return this.userController.compactAndMutate(expectedRevision, request, compacted, maxCompactedBytes, lineage)
+    }
     const operation = this.queue.then(() => this.withLock(() => {
       const file = this.readSource()
       const beforeRevision = revision(file)
@@ -610,6 +650,9 @@ ${memory || '(empty)'}
     maxBytes?: number,
     lineage: readonly MemoryMigrationLineage[] = [],
   ): Promise<RuntimeMemorySnapshot> {
+    if (target === 'user' && this.userController !== undefined) {
+      return this.userController.compactTarget(expectedRevision, target, compacted, maxBytes, lineage).then(() => this.snapshot())
+    }
     const operation = this.queue.then(() => this.withLock(() => {
       const file = this.readSource()
       const beforeRevision = revision(file)
@@ -649,7 +692,7 @@ ${memory || '(empty)'}
       return snapshot
     })
     this.queue = operation.catch(() => undefined)
-    return operation
+    return this.userController === undefined ? operation : operation.then(() => this.snapshot())
   }
 
   private initialize(): void {
@@ -733,7 +776,7 @@ ${memory || '(empty)'}
     mkdirSync(this.directory, { recursive: true, mode: 0o700 })
     const nonce = `${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}`
     const writes: Array<[string, string]> = [
-      [this.userPath, markdown(file.entries, 'user')],
+      [this.localUserPath, markdown(file.entries, 'user')],
       [this.memoryPath, markdown(file.entries, 'memory')],
       [this.sourcePath, `${JSON.stringify(file, null, 2)}\n`],
     ]
@@ -748,7 +791,7 @@ ${memory || '(empty)'}
   }
 
   private repairProjections(file: RuntimeMemoryFile): void {
-    for (const [path, target] of [[this.userPath, 'user'], [this.memoryPath, 'memory']] as const) {
+    for (const [path, target] of [[this.localUserPath, 'user'], [this.memoryPath, 'memory']] as const) {
       const expected = markdown(file.entries, target)
       let current: string | undefined
       try {

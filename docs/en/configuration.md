@@ -12,7 +12,7 @@ $DSH_HOME/settings.yaml
 
 The default is commonly `~/.dsh/settings.yaml`. All current settings are marked `live`; after Save, the Host initializes a candidate runtime graph and then switches to it atomically.
 
-The Web settings page edits `displayMode`, `storageScope`, `dataDir`, Mnemon Native's Ollama embedding override, one master switch for each of the three memory Layers, the background task Agent model route, and the Turn memory and Save-to-memory switches under `mnemon-ui`. Global and Workspace define the scope of the complete memory system. Mnemon Native owns its Custom data location, embedding runtime, and ZIP backup/migration controls. Each external provider has a collapsible service configuration for reusable endpoints, credentials, or executables. Enabling or saving it discovers the provider's existing namespaces and maps them into Memory Spaces → Overview; disabling it removes those local mappings without deleting provider data. Other advanced settings must be changed directly in YAML.
+The Web settings page edits `displayMode`, `storageScope`, the independent `runtimeUserScope`, `dataDir`, Mnemon Native's Ollama embedding override, one master switch for each of the three memory Layers, the background task Agent model route, and the Turn memory and Save-to-memory switches under `mnemon-ui`. Global and Workspace define the scope of the complete memory system; the USER.md profile may explicitly remain global while project memory follows that scope. Mnemon Native owns its Custom data location, embedding runtime, and ZIP backup/migration controls. Each external provider has a collapsible service configuration for reusable endpoints, credentials, or executables. Enabling or saving it discovers the provider's existing namespaces and maps them into Memory Spaces → Overview; disabling it removes those local mappings without deleting provider data. Other advanced settings must be changed directly in YAML.
 
 ## Complete Example
 
@@ -20,6 +20,7 @@ The Web settings page edits `displayMode`, `storageScope`, `dataDir`, Mnemon Nat
 mnemon:
   displayMode: sidebar # sidebar | buildin
   storageScope: global # global | workspace | custom
+  runtimeUserScope: storage # storage | global
   # dataDir: ~/mnemon-data       # required for custom
   # cliPath: /opt/homebrew/bin/mnemon
   # store: legacy-store          # compatibility discovery hint, not a regular routing target
@@ -65,6 +66,7 @@ mnemon:
 |---|---:|---|---|
 | `displayMode` | `sidebar` | `sidebar` / `buildin` | `sidebar` mounts the dedicated sidebar workbench; `buildin` restores the native DSH conversation-area tab; saving switches live and never mounts both entries together |
 | `storageScope` | `global` | `global` / `workspace` / `custom` | Controls the root for Runtime, Documents, Memory Spaces, and reserved state as one unit |
+| `runtimeUserScope` | `storage` | `storage` / `global` | Keeps USER.md in the selected storage root, or overlays the global USER.md while project MEMORY.md and the other layers stay selected-scope |
 | `dataDir` | unset | absolute path, `~`, or `~/...` | Required for `custom`; legacy configurations that set only this option automatically resolve to `custom` |
 | `cliPath` | auto-discovered | executable path | Explicitly selects the Mnemon CLI |
 | `store` | unset | `[A-Za-z0-9][A-Za-z0-9_-]*` | Compatibility discovery/preference hint for legacy Stores; semantic operations are routed through Memory Spaces |
@@ -177,6 +179,20 @@ Web workbench inspection: resolve(workspaceRegistry.get(selectedWorkspaceId).pat
 Each DSH workspace owns an independent three-tier memory root. Conversation Agents, model tools, commands, and lifecycle hooks route by the current session cwd. Independent task Agents launched from the Web workbench instead use the selected Host-registered workspace explicitly; the browser can never submit an arbitrary path. AI metadata, Agent Query, memory distillation, and document archiving therefore target the workspace selected at the top left even when no main session is selected.
 
 Headless has no `workspaceRegistry`; its fresh session cwd is the directory from which `dsh --profile headless ...` was launched, so `workspace` resolves directly to `<invocation cwd>/.mnemon`.
+
+### Global USER.md with workspace project memory
+
+To share user-level collaboration requirements across repositories while keeping project facts isolated, select **Workspace** plus **Global user profile**, or configure:
+
+```yaml
+mnemon:
+  storageScope: workspace
+  runtimeUserScope: global
+```
+
+Each turn then projects `USER.md` from the global root (`MNEMON_DATA_DIR` when set, otherwise `~/.mnemon`) together with `MEMORY.md` from `<workspace>/.mnemon`. `target=user` mutations and local USER.md compaction go only to the global source; `target=memory`, Documents, Memory Spaces, and Provider state remain workspace-scoped. Global MEMORY.md and workspace USER.md entries stay intact on disk but are not projected in this mode.
+
+Changing this setting never copies, merges, or deletes entries. Switching back to `runtimeUserScope: storage` reveals the selected root's original USER.md again. A Mnemon Pack still represents one selected storage root, so a workspace Pack does not silently include the separate global USER.md; back up the global root separately when that profile is important.
 
 ### `custom`
 

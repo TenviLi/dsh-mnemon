@@ -150,6 +150,7 @@ Settings owns reusable **service configuration** only:
 - API Keys use a conventional password field whose eye button toggles visible/hidden; there is no clear-credential checkbox, dedicated Remove row, or saved-secret caption;
 - Save updates service configuration without waiting for discovery or recall; health belongs on Status and instances belong on Overview;
 - global / workspace / custom tags show effective scope; Providers with the same scope semantics reuse Mnemon's configuration framework.
+- User profile scope is independent: **Global user profile** combines global USER.md with workspace/custom MEMORY.md without moving either source.
 
 The screenshot below comes from an isolated installation of `dsh-mnemon@0.3.0`. Each default Layer has exactly one master switch. “On” permits on-demand use; it does not force Recall on every turn.
 

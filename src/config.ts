@@ -130,6 +130,7 @@ export const Config: z<Config> = z.object({
   // Keep this optional in the schema so legacy dataDir-only installs still
   // resolve to the custom scope instead of being silently reset to global.
   storageScope: z.union(['global', 'workspace', 'custom'] as const),
+  runtimeUserScope: z.union(['storage', 'global'] as const).default('storage'),
   cliPath: z.string(),
   dataDir: z.string(),
   customPackId: z.string(),
@@ -375,6 +376,8 @@ export function resolveConfig(config: Config = {}): ResolvedConfig {
   if (requestedPackId !== undefined && !CUSTOM_PACK_ID.test(requestedPackId)) throw new Error('dsh-mnemon: customPackId is invalid')
   const store = optionalText(config.store)
   const storageScope = config.storageScope ?? (legacyDataDir === undefined && legacyPacks.length === 0 ? 'global' : 'custom')
+  const runtimeUserScope = config.runtimeUserScope ?? 'storage'
+  if (runtimeUserScope !== 'storage' && runtimeUserScope !== 'global') throw new Error(`dsh-mnemon: unsupported Runtime USER.md scope: ${String(runtimeUserScope)}`)
   const selectedPack = requestedPackId === undefined
     ? legacyPacks.find(pack => pack.dataDir === legacyDataDir) ?? (legacyPacks.length === 1 ? legacyPacks[0] : undefined)
     : legacyPacks.find(pack => pack.id === requestedPackId)
@@ -386,6 +389,7 @@ export function resolveConfig(config: Config = {}): ResolvedConfig {
   }
   return {
     storageScope,
+    runtimeUserScope,
     ...(cliPath === undefined ? {} : { cliPath }),
     ...(dataDir === undefined ? {} : { dataDir }),
     ...(store === undefined ? {} : { store }),

@@ -9,6 +9,7 @@ describe('Mnemon config and resolution', () => {
   it('materializes conservative defaults', () => {
     expect(resolveConfig({})).toMatchObject({
       storageScope: 'global',
+      runtimeUserScope: 'storage',
       timeoutMs: 10_000,
       defaultRecallLimit: 10,
       runtimeMemory: {
@@ -206,6 +207,12 @@ describe('Mnemon config and resolution', () => {
     })
     expect(() => resolveConfig({ storageScope: 'custom' })).toThrow('custom dataDir')
     expect(() => resolveConfig({ storageScope: 'custom', dataDir: 'relative/memory' })).toThrow('absolute')
+  })
+
+  it('keeps USER.md on the selected root by default and accepts an explicit global profile', () => {
+    expect(resolveConfig({ storageScope: 'workspace' })).toMatchObject({ storageScope: 'workspace', runtimeUserScope: 'storage' })
+    expect(resolveConfig({ storageScope: 'workspace', runtimeUserScope: 'global' })).toMatchObject({ storageScope: 'workspace', runtimeUserScope: 'global' })
+    expect(() => resolveConfig({ runtimeUserScope: 'workspace' as never })).toThrow('USER.md scope')
   })
 
   it('migrates the selected root from the former named-Pack settings', () => {
