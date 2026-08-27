@@ -11,6 +11,11 @@ describe('Mnemon config and resolution', () => {
       storageScope: 'global',
       timeoutMs: 10_000,
       defaultRecallLimit: 10,
+      runtimeMemory: {
+        memoryLimitBytes: 10_240,
+        userLimitBytes: 4_096,
+        maintenanceMaxTokens: 8_192,
+      },
       embedding: {
         enabled: false,
         endpoint: 'http://localhost:11434',
@@ -102,6 +107,23 @@ describe('Mnemon config and resolution', () => {
     expect(() => resolveConfig({ recallQuality: { policy: '../unsafe' } })).toThrow('policy id')
     expect(() => resolveConfig({ recallQuality: { maxMediumResults: 51 } })).toThrow('max medium')
     expect(() => resolveConfig({ recallQuality: { maxUnknownResults: -1 } })).toThrow('max unknown')
+  })
+
+  it('resolves bounded Runtime Memory capacity and maintenance budgets', () => {
+    expect(resolveConfig({
+      runtimeMemory: {
+        memoryLimitBytes: 20_480,
+        userLimitBytes: 10_240,
+        maintenanceMaxTokens: 32_768,
+      },
+    }).runtimeMemory).toEqual({
+      memoryLimitBytes: 20_480,
+      userLimitBytes: 10_240,
+      maintenanceMaxTokens: 32_768,
+    })
+    expect(() => resolveConfig({ runtimeMemory: { memoryLimitBytes: 0 } })).toThrow('MEMORY.md limit')
+    expect(() => resolveConfig({ runtimeMemory: { userLimitBytes: 1.5 } })).toThrow('USER.md limit')
+    expect(() => resolveConfig({ runtimeMemory: { maintenanceMaxTokens: 1_000_001 } })).toThrow('maintenance maxTokens')
   })
 
   it('inherits the DSH new-session model by default and validates fixed task routes', () => {

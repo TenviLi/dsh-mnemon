@@ -928,6 +928,7 @@ export class MnemonSubagentCoordinator {
     private readonly documents?: DocumentManager,
     private readonly resultRuntime?: HostResultToolRuntime,
     private readonly taskAgentModelResolver?: () => { provider: string; model: string } | undefined,
+    private readonly runtimeMaintenanceMaxTokensResolver?: () => number,
   ) {}
 
   snapshot(): SubagentCounters {
@@ -1724,7 +1725,9 @@ ${runtimeSnapshotContext('user', plan.entries)}`
       const completionPersona = `${persona}
 
 Completion protocol: call \`${resultToolName}\` exactly once with the final result matching its parameter schema. This is the only completion channel for this run. Do not finish with a plain-text answer.`
-      const perOpMaxTokens = operation === 'migration' || operation === 'compaction' || operation === 'document-archive' ? 8_192
+      const perOpMaxTokens = operation === 'migration' || operation === 'compaction'
+        ? this.runtimeMaintenanceMaxTokensResolver?.() ?? 8_192
+        : operation === 'document-archive' ? 8_192
         : operation === 'metadata-maintenance' ? 4_096
         : undefined
       const fixed = this.taskAgentModelResolver?.()

@@ -11,6 +11,11 @@ import {
 } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { basename, join } from 'node:path'
+import {
+  DEFAULT_RUNTIME_MEMORY_LIMIT_BYTES,
+  DEFAULT_RUNTIME_USER_LIMIT_BYTES,
+  MAX_RUNTIME_MEMORY_LIMIT_BYTES,
+} from './config-values.ts'
 import type { MnemonRunner } from './runner.ts'
 import type { AuthorityCommitRecorder } from './memory-receipts.ts'
 import type { MemoryMigrationLineage } from '../packages/contracts/src/index.ts'
@@ -42,7 +47,14 @@ export type {
 
 export const RUNTIME_MEMORY_VERSION = 1
 export const RUNTIME_ENTRY_DELIMITER = '\n§\n'
-export const RUNTIME_MEMORY_LIMITS = { memory: 10 * 1024, user: 4 * 1024 } as const
+export interface RuntimeMemoryLimits {
+  readonly memory: number
+  readonly user: number
+}
+export const RUNTIME_MEMORY_LIMITS: RuntimeMemoryLimits = {
+  memory: DEFAULT_RUNTIME_MEMORY_LIMIT_BYTES,
+  user: DEFAULT_RUNTIME_USER_LIMIT_BYTES,
+}
 export const RUNTIME_MEMORY_PROTOCOL: string = `MNEMON RUNTIME MEMORY PROTOCOL
 Runtime Memory keeps compact hot memory available for every turn. The latest MNEMON RUNTIME MEMORY SNAPSHOT in runtime context is a complete projection of USER.md and MEMORY.md and supersedes earlier Runtime Memory snapshots. Apply applicable entries silently and never recite them merely to prove they were read.
 
@@ -371,6 +383,7 @@ export class RuntimeMemoryController {
   readonly memoryPath: string
   readonly userPath: string
   readonly lockPath: string
+  readonly limits: RuntimeMemoryLimits
 
   private queue: Promise<unknown> = Promise.resolve()
 
@@ -378,7 +391,14 @@ export class RuntimeMemoryController {
     runner: Pick<MnemonRunner, 'effectiveDataDir'>,
     private readonly now: () => Date = () => new Date(),
     private readonly recordCommit?: AuthorityCommitRecorder,
+    limits: RuntimeMemoryLimits = RUNTIME_MEMORY_LIMITS,
   ) {
+    for (const [target, limit] of Object.entries(limits)) {
+      if (!Number.isInteger(limit) || limit < 1 || limit > MAX_RUNTIME_MEMORY_LIMIT_BYTES) {
+        throw new Error(`runtime ${target} memory limit must be an integer within 1..${MAX_RUNTIME_MEMORY_LIMIT_BYTES} bytes`)
+      }
+    }
+    this.limits = { memory: limits.memory, user: limits.user }
     this.directory = join(runner.effectiveDataDir(), 'runtime')
     this.sourcePath = join(this.directory, 'memories.json')
     this.memoryPath = join(this.directory, 'MEMORY.md')
@@ -491,7 +511,7 @@ ${memory || '(empty)'}
       const prepared = prepareMutation(file.entries, request, this.now().toISOString())
       const used = byteCount(file.entries, request.target)
       const projected = byteCount(prepared.projectedEntries, request.target)
-      const limit = RUNTIME_MEMORY_LIMITS[request.target]
+      const limit = this.limits[request.target]
       return {
         revision: revision(file),
         action: request.action,
@@ -516,7 +536,7 @@ ${memory || '(empty)'}
     expectedRevision: string,
     request: RuntimeMemoryMutation,
     compacted: RuntimeMemoryCompactedEntry[],
-    maxCompactedBytes = RUNTIME_MEMORY_LIMITS[request.target],
+    maxCompactedBytes?: number,
     lineage: readonly MemoryMigrationLineage[] = [],
   ): Promise<RuntimeMemoryMutationResult> {
     const operation = this.queue.then(() => this.withLock(() => {
@@ -525,7 +545,8 @@ ${memory || '(empty)'}
       if (beforeRevision !== expectedRevision) throw new RuntimeMemoryConflictError()
       const now = this.now().toISOString()
       const prepared = prepareMutation(file.entries, request, now)
-      if (!Number.isInteger(maxCompactedBytes) || maxCompactedBytes < 0 || maxCompactedBytes > RUNTIME_MEMORY_LIMITS[request.target]) {
+      const compactedByteBudget = maxCompactedBytes ?? this.limits[request.target]
+      if (!Number.isInteger(compactedByteBudget) || compactedByteBudget < 0 || compactedByteBudget > this.limits[request.target]) {
         throw new Error('compaction byte budget is invalid')
       }
       if (!prepared.changed) {
@@ -542,11 +563,11 @@ ${memory || '(empty)'}
       if (prepared.excludedEntry !== undefined && replacements.some(entry => entry.content === prepared.excludedEntry!.content)) {
         throw new Error('compacted runtime memory reintroduces the replaced or removed entry')
       }
-      const fitted = packCompactionCandidates(replacements, request.target, maxCompactedBytes)
+      const fitted = packCompactionCandidates(replacements, request.target, compactedByteBudget)
       const targetEntries = [...fitted, ...(prepared.pendingEntry === undefined ? [] : [prepared.pendingEntry])]
       const entries = [...file.entries.filter(entry => entry.target !== request.target), ...targetEntries]
       const used = byteCount(entries, request.target)
-      const limit = RUNTIME_MEMORY_LIMITS[request.target]
+      const limit = this.limits[request.target]
       if (used > limit) throw new RuntimeMemoryCapacityError(request.target, byteCount(file.entries, request.target), used, limit)
       const next: RuntimeMemoryFile = { version: RUNTIME_MEMORY_VERSION, entries }
       this.persist(next)
@@ -586,23 +607,24 @@ ${memory || '(empty)'}
     expectedRevision: string,
     target: RuntimeMemoryTarget,
     compacted: RuntimeMemoryCompactedEntry[],
-    maxBytes = RUNTIME_MEMORY_LIMITS[target],
+    maxBytes?: number,
     lineage: readonly MemoryMigrationLineage[] = [],
   ): Promise<RuntimeMemorySnapshot> {
     const operation = this.queue.then(() => this.withLock(() => {
       const file = this.readSource()
       const beforeRevision = revision(file)
       if (beforeRevision !== expectedRevision) throw new RuntimeMemoryConflictError()
-      if (!Number.isInteger(maxBytes) || maxBytes < 0 || maxBytes > RUNTIME_MEMORY_LIMITS[target]) throw new Error('compaction byte budget is invalid')
+      const byteBudget = maxBytes ?? this.limits[target]
+      if (!Number.isInteger(byteBudget) || byteBudget < 0 || byteBudget > this.limits[target]) throw new Error('compaction byte budget is invalid')
       const now = this.now().toISOString()
       const existing = file.entries.filter(entry => entry.target === target)
       const replacements = compactionCandidates(compacted, existing, target, now)
       // The worker supplies semantic candidates; deterministic packing owns exact
       // UTF-8 accounting so the LLM never has to count bytes or delimiters.
-      const fitted = packCompactionCandidates(replacements, target, maxBytes)
+      const fitted = packCompactionCandidates(replacements, target, byteBudget)
       const entries = [...file.entries.filter(entry => entry.target !== target), ...fitted]
       const used = byteCount(entries, target)
-      const limit = RUNTIME_MEMORY_LIMITS[target]
+      const limit = this.limits[target]
       if (used > limit) throw new RuntimeMemoryCapacityError(target, byteCount(file.entries, target), used, limit)
       this.persist({ version: RUNTIME_MEMORY_VERSION, entries })
       const snapshot = this.snapshotUnlocked({ version: RUNTIME_MEMORY_VERSION, entries })
@@ -643,7 +665,7 @@ ${memory || '(empty)'}
     const prepared = prepareMutation(file.entries, request, this.now().toISOString())
     if (!prepared.changed) return this.result(request.target, prepared.projectedEntries, prepared.fields)
     const used = byteCount(prepared.projectedEntries, request.target)
-    const limit = RUNTIME_MEMORY_LIMITS[request.target]
+    const limit = this.limits[request.target]
     if (used > limit) throw new RuntimeMemoryCapacityError(request.target, byteCount(file.entries, request.target), used, limit)
     this.persist({ version: RUNTIME_MEMORY_VERSION, entries: prepared.projectedEntries })
     return this.result(request.target, prepared.projectedEntries, prepared.fields)
@@ -659,7 +681,7 @@ ${memory || '(empty)'}
       message: fields.message,
       target,
       entryCount: entries.filter(entry => entry.target === target).length,
-      usage: { used: byteCount(entries, target), limit: RUNTIME_MEMORY_LIMITS[target] },
+      usage: { used: byteCount(entries, target), limit: this.limits[target] },
       ...(fields.added === undefined ? {} : { added: fields.added }),
       ...(fields.replaced === undefined ? {} : { replaced: fields.replaced }),
       ...(fields.removed === undefined ? {} : { removed: fields.removed }),
@@ -671,7 +693,7 @@ ${memory || '(empty)'}
       target,
       entryCount: entries.filter(entry => entry.target === target).length,
       used: byteCount(entries, target),
-      limit: RUNTIME_MEMORY_LIMITS[target],
+      limit: this.limits[target],
       markdownPath: target === 'memory' ? this.memoryPath : this.userPath,
     }
   }

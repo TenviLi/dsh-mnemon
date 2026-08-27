@@ -101,7 +101,7 @@ export function apply(rawContext: unknown, config: MnemonConfig = {}): void {
     const model = taskAgentModel.model?.trim()
     if (provider === undefined || provider === '' || model === undefined || model === '') return undefined
     return { provider, model }
-  })
+  }, () => runtime.config.runtimeMemory.maintenanceMaxTokens)
   const lifecycle = new MnemonLifecycle(ctx, coordinator, runtime.config, runtime)
   ctx.effect(() => {
     const stop = lifecycle.start()

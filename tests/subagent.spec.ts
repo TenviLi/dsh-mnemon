@@ -1461,7 +1461,7 @@ describe('Mnemon memory subagent coordinator', () => {
     expect(reviewCall.agentOptions).toBeUndefined()
   })
 
-  it('merges a fixed task Agent model with the per-op maxTokens for short-lived delegates', async () => {
+  it('merges a fixed task Agent model with the configured Runtime maintenance maxTokens', async () => {
     const host = subagents({
       summary: 'Merged two compatible profile preferences locally.',
       action: 'compacted',
@@ -1488,13 +1488,14 @@ describe('Mnemon memory subagent coordinator', () => {
       undefined,
       resultTools.value,
       () => ({ provider: 'pinned-provider', model: 'pinned-model' }),
+      () => 32_768,
     )
 
     await expect(coordinator.runtime(parent(), { action: 'add', target: 'user', content: 'User prefers direct answers.' }, new AbortController().signal)).resolves.toMatchObject({
       maintenance: { kind: 'local-compaction' },
     })
     expect(host.start).toHaveBeenCalledWith('spawn', expect.objectContaining({
-      agentOptions: { provider: 'pinned-provider', model: 'pinned-model', maxTokens: 8_192 },
+      agentOptions: { provider: 'pinned-provider', model: 'pinned-model', maxTokens: 32_768 },
     }))
   })
 })
