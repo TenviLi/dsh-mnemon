@@ -108,7 +108,7 @@ Windows users can install the official v0.2.3-or-newer release ZIP. The expected
 
 ### 2. Install DSH and the plugin
 
-This release is verified against DSH 0.1.1-rc.2, whose complete profiles require Node.js `^22.19.0 || >=24.0.0`; Node 20 lacks host primitives used by rc.2. The dsh-mnemon package itself retains Node.js 20 compatibility for older compatible DSH hosts. DSH rc.2 is published on npm's `latest` and `next` tags; use the exact version below for a reproducible installation:
+The registry installation remains verified against DSH 0.1.1-rc.2, whose complete profiles require Node.js `^22.19.0 || >=24.0.0`; Node 20 lacks host primitives used by rc.2. Source compatibility is also verified against the source-only DSH 0.1.2-alpha.1 preview; it is not an npm installation target. The dsh-mnemon package itself retains Node.js 20 compatibility for older compatible DSH hosts. Use the exact published version below for a reproducible installation; plugin authors can follow the [alpha source workflow](./docs/en/development.md#dsh-012-alpha1-source-verification).
 
 ```sh
 npm install -g @deepseek-ai/dsh@0.1.1-rc.2

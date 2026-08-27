@@ -207,9 +207,9 @@ export class MnemonClient {
   providerServices(): Promise<MemoryProviderServiceCatalog> {
     const payload = this.scoped()
     return this.call<MemoryProviderServiceCatalog>(MNEMON_WRITE_CHANNEL, 'provider-services', payload).catch(reason => {
-      // Pre-v0.2.2 Hosts exposed this catalog on the read channel. Only a
-      // loopback caller can reach this fallback because every other write-
-      // channel failure, including 403, is preserved.
+      // Pre-v0.2.2 Hosts exposed this catalog on the read channel. Preserve
+      // only the exact missing-endpoint fallback; every other failure stays
+      // authoritative.
       if (!isMissingPrivateProviderServices(reason)) throw reason
       return this.call(MNEMON_READ_CHANNEL, 'provider-services', payload)
     })

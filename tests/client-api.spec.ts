@@ -78,7 +78,7 @@ describe('MnemonClient turn activity batching', () => {
     })
   })
 
-  it('loads Provider secrets through the loopback channel and never falls back after an authority rejection', async () => {
+  it('loads Provider secrets through the management channel and never masks an authentication rejection', async () => {
     const call = vi.fn(async (channel: string) => {
       if (channel === '/dsh-mnemon-write') return { ok: true as const, value: { providers: [], items: [], generatedAt: 'now' } }
       throw new Error(`unexpected channel: ${channel}`)
@@ -132,7 +132,7 @@ describe('MnemonClient turn activity batching', () => {
     })
   })
 
-  it('routes a card-level Memory Space reconnect through the trusted-host read channel with the active scope', async () => {
+  it('routes a card-level Memory Space reconnect through the read channel with the active scope', async () => {
     const call = vi.fn(async () => ({ ok: true as const, value: { id: 'mem0-body', healthy: true } }))
     const client = new MnemonClient({ rpc: { call } } as ClientConnectionHandle, 'session-1', 'workspace-1')
 
@@ -143,7 +143,7 @@ describe('MnemonClient turn activity batching', () => {
     })
   })
 
-  it('routes activation through the narrow trusted-host channel while keeping metadata loopback-only', async () => {
+  it('routes activation through its narrow channel while keeping metadata on the management channel', async () => {
     const call = vi.fn(async () => ({ ok: true as const, value: { id: 'project', active: true } }))
     const client = new MnemonClient({ rpc: { call } } as ClientConnectionHandle, 'session-1', 'workspace-1')
 

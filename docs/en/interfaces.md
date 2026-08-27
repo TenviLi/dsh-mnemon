@@ -117,7 +117,7 @@ RPC is an internal Host-to-client bridge, not a stable external HTTP API.
 
 ```text
 channel:   /dsh-mnemon-read
-authority: trusted-host
+authentication: DSH browser session
 ```
 
 | Endpoint | Behavior |
@@ -137,11 +137,11 @@ authority: trusted-host
 
 ### Write channel
 
-Memory Space activation has a narrower `trusted-host` control plane:
+Memory Space activation has a narrower request schema on its own control channel:
 
 ```text
 channel:   /dsh-mnemon-activation
-authority: trusted-host
+authentication: DSH browser session
 endpoint:  body
 ```
 
@@ -151,7 +151,7 @@ All broader mutations remain on the write channel:
 
 ```text
 channel:   /dsh-mnemon-write
-authority: loopback (`trusted-host` when `remoteAccess=trusted-host`)
+authentication: DSH browser session
 ```
 
 | Endpoint | Behavior |
@@ -165,15 +165,15 @@ authority: loopback (`trusted-host` when `remoteAccess=trusted-host`)
 | `provider-services` / `provider-service-update` | Read private Provider settings for the local settings UI, or update one service |
 | `version-update` | Update a named component with Host-fixed commands and arguments |
 
-The private `provider-services` response, including saved credential values needed by the local editor, is available only over this loopback channel. The trusted-host read endpoint always returns a redacted catalog.
+The private `provider-services` response, including saved credential values needed by the settings editor, is available only over this management channel. The ordinary read endpoint always returns a redacted catalog.
 
-With `writeEnabled=false`, both activation control and the write channel remain registered but mutations are rejected at the Host boundary. A remote trusted-host client also disables every loopback-only control before transport while leaving activation available.
+With `writeEnabled=false`, both activation control and the write channel remain registered but mutations are rejected at the Host boundary. The browser also disables mutation controls from the Host's settings snapshot before transport.
 
 ### Backup channel
 
 ```text
 channel:   /dsh-mnemon-pack
-authority: loopback (`trusted-host` when `remoteAccess=trusted-host`)
+authentication: DSH browser session
 ```
 
 | Endpoint | Behavior |
@@ -183,18 +183,20 @@ authority: loopback (`trusted-host` when `remoteAccess=trusted-host`)
 | `inspect` | Parse and verify an import ZIP, returning component and occupancy preview |
 | `import` | Safely merge into the effective root; rejected in read-only mode |
 
-Backups contain private memory, so the channel is loopback-only by default; deployment authentication must protect remote management mode.
+Backups contain private memory, so callers must treat the authenticated DSH browser session as a full Host authority and protect exported archives separately.
 
 ### Settings channel
 
 ```text
 channel:   /dsh-mnemon-settings
-authority: loopback (`trusted-host` when `remoteAccess=trusted-host`)
+authentication: DSH browser session
 namespaces: mnemon, mnemon-ui
 endpoints: get, mutate
 ```
 
 Mutations use settings revisions to prevent overwriting concurrent edits. `mnemon` owns Host/storage settings; `mnemon-ui` owns `turnBar` and `saveAction`.
+
+DSH 0.1.2-alpha.1 authenticates the complete Host API with one browser session. These channels separate schemas, payload sensitivity, and compatibility routes; they are not method-specific privilege tiers.
 
 ## npm exports and extension service
 

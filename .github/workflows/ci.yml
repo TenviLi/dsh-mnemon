@@ -9,6 +9,52 @@ permissions:
   contents: read
 
 jobs:
+  verify-dsh-alpha-source:
+    name: Verify DSH 0.1.2-alpha.1 source
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out dsh-mnemon
+        uses: actions/checkout@v6
+        with:
+          path: dsh-mnemon
+
+      - name: Check out DSH alpha source
+        uses: actions/checkout@v6
+        with:
+          repository: deepseek-ai/deepseek-harness
+          ref: dsh-v0.1.2-alpha.1
+          path: deepseek-harness
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install pnpm
+        run: npm install --global pnpm@11.7.0
+
+      - name: Build DSH alpha libraries
+        working-directory: deepseek-harness
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build:lib
+
+      - name: Install dsh-mnemon dependencies
+        working-directory: dsh-mnemon
+        run: pnpm install --frozen-lockfile
+
+      - name: Link DSH alpha source packages
+        working-directory: dsh-mnemon
+        env:
+          DSH_SOURCE_ROOT: ${{ github.workspace }}/deepseek-harness
+        run: pnpm run dsh:link-source
+
+      - name: Verify against DSH alpha
+        working-directory: dsh-mnemon
+        run: pnpm run verify
+
   verify:
     name: Verify (${{ matrix.os }}, Node ${{ matrix.node }})
     runs-on: ${{ matrix.os }}

@@ -108,7 +108,7 @@ Windows 推荐安装 v0.2.3 或更高版本的官方 ZIP；标准安装目录与
 
 ### 2. 安装 DSH 与插件
 
-本版本已验证 DSH 0.1.1-rc.2；其完整 profile 需要 Node.js `^22.19.0 || >=24.0.0`，Node 20 缺少 rc.2 使用的宿主原语。dsh-mnemon 包本身仍为较旧且兼容的 DSH Host 保留 Node.js 20 支持。DSH rc.2 已发布到 npm 的 `latest` 与 `next` 标签；为了可复现安装，下面显式指定版本：
+Registry 安装仍以 DSH 0.1.1-rc.2 验证；其完整 profile 需要 Node.js `^22.19.0 || >=24.0.0`，Node 20 缺少 rc.2 使用的宿主原语。源码兼容性也已针对仅提供源码的 DSH 0.1.2-alpha.1 预览版验证；它不是 npm 安装目标。dsh-mnemon 包本身仍为较旧且兼容的 DSH Host 保留 Node.js 20 支持。下面显式指定已发布版本以保证可复现安装；插件作者可参照 [alpha 源码验证流程](./docs/zh-CN/development.md#dsh-012-alpha1-源码验证)。
 
 ```sh
 npm install -g @deepseek-ai/dsh@0.1.1-rc.2

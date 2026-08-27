@@ -144,8 +144,6 @@ export interface Config {
   displayMode?: 'sidebar' | 'buildin'
   tabEnabled?: boolean
   writeEnabled?: boolean
-  /** Remote Web policy for privileged Mnemon RPC. This boundary is sampled at Host startup. */
-  remoteAccess?: 'read-only' | 'trusted-host'
   lifecycleEnabled?: boolean
   recallMode?: 'guided' | 'off'
   writebackMode?: 'guided' | 'off'
@@ -234,7 +232,6 @@ export interface ResolvedConfig {
   displayMode: 'sidebar' | 'buildin'
   tabEnabled: boolean
   writeEnabled: boolean
-  remoteAccess: 'read-only' | 'trusted-host'
   lifecycleEnabled: boolean
   recallMode: 'guided' | 'off'
   writebackMode: 'guided' | 'off'

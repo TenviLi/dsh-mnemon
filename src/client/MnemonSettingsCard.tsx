@@ -304,8 +304,8 @@ export function MnemonSettingsCard({ scope, interactionScope: suppliedInteractio
   const error = validation(t, draft)
   const loading = coreSnapshot.status === 'loading' || interactionSnapshot.status === 'loading'
   // A successful writable settings snapshot is the Host's authoritative
-  // capability grant. Remote trusted-host deployments deliberately expose the
-  // same management RPCs, so transport locality is not a capability signal.
+  // capability grant. DSH authenticates the complete Host API, so transport
+  // locality is not a capability signal.
   const writable = coreSnapshot.writable && interactionSnapshot.writable
 
   if (coreSnapshot.status === 'unavailable' && interactionSnapshot.status === 'unavailable') {

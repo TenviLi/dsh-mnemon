@@ -194,7 +194,7 @@ whether two items are duplicates    process timeout/cancel
 how to summarize a Document         file lock + atomic rename
 whether a reusable artifact exists  UTF-8 capacity accounting
                                      revision conflict rejection
-                                     read/write RPC authority
+                                     authenticated RPC boundary
 ```
 
 必须区分“persona 约束”和“Host 硬保证”。例如 MEMORY 归档 worker 被要求覆盖每条已提交热记忆，但 Host 只能硬校验结构化 action、revision 和字节预算；USER 压缩的 source coverage 则由 Host 逐项验证。
@@ -206,13 +206,13 @@ WebUI 不启动系统进程，也不直接打开 SQLite：
 ```text
 browser component
   -> typed client wrapper
-  -> DSH RPC authority check
+  -> DSH browser-session authentication
   -> Host validation
   -> controller / service / bounded worker
   -> local CLI or managed files
 ```
 
-读通道与仅含记忆体激活的控制通道要求 `trusted-host`，更宽泛的记忆写、设置和备份通道默认要求 `loopback`。激活处理器只接受精确的记忆体 ID 与布尔状态。Provider 凭据值只经私密的管理权限服务目录传递，普通 trusted-host 目录始终脱敏。浏览器组件会从连接边界推导本地写入能力，在传输前禁用更宽泛的控件。对于已有可靠部署层认证的环境，可在 Host 本地设置 `remoteAccess=trusted-host` 并重启，将三个特权通道整体提升；DSH `trustedHosts` 本身不是用户身份认证。`writeEnabled=false` 时所有 mutation 处理器都会在 Host 边界拒绝请求。
+DSH 浏览器会话现在统一认证所有通道。激活处理器仍只接受精确的记忆体 ID 与布尔状态；Provider 凭据值只经私密管理目录传递，普通读目录始终脱敏，但这些通道拆分约束的是数据结构而非调用方权限。浏览器组件从 Host settings 推导产品可写性，并在传输前禁用 mutation 控件。`writeEnabled=false` 时所有 mutation 处理器都会在 Host 边界拒绝请求。
 
 ## 国际化
 

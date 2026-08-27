@@ -64,7 +64,6 @@ function context(locale?: { getSnapshot(): { active: 'zh' | 'en'; locales: reado
       { workspaceId: 'workspace-1', title: 'Workspace One', path: '/tmp/workspace-one' },
       { workspaceId: 'workspace-2', title: 'Workspace Two', path: '/tmp/workspace-two' },
     ],
-    recentWorkspaceId: 'workspace-2',
   }
   return {
     connection: { rpc: { call: vi.fn() } },

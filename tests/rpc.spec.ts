@@ -118,7 +118,7 @@ describe('Mnemon RPC', () => {
     expect(service.reconnectBody).toHaveBeenCalledWith('project')
   })
 
-  it('keeps Provider secret values on the loopback channel while preserving a redacted trusted-host catalog', async () => {
+  it('keeps Provider secret values on the management channel while preserving a redacted read catalog', async () => {
     const service = fakeService()
     const providerServices = vi.fn((options: { includeSecrets?: boolean } = {}) => ({
       providers: [],
@@ -143,7 +143,7 @@ describe('Mnemon RPC', () => {
     expect(providerServices).toHaveBeenNthCalledWith(2, { includeSecrets: true })
   })
 
-  it('checks versions on the read channel and keeps explicit updates loopback-only', async () => {
+  it('checks versions on the read channel and keeps explicit updates on the management channel', async () => {
     const versions = {
       currentDshMnemonVersion: '0.1.2',
       check: vi.fn(async () => ({ checkedAt: 'now', components: [{ id: 'mnemon', current: '0.2.0' }] })),
@@ -189,13 +189,13 @@ describe('Mnemon RPC', () => {
     expect(service.remember).toHaveBeenCalledWith(expect.objectContaining({ source: 'user' }))
   })
 
-  it('deletes a Memory Space through the loopback write channel', async () => {
+  it('deletes a Memory Space through the management channel', async () => {
     const service = fakeService()
     await expect(createWriteHandler(service)('body-delete', { memoryBodyId: 'project' })).resolves.toMatchObject({ ok: true, value: { id: 'project' } })
     expect(service.deleteBody).toHaveBeenCalledWith('project')
   })
 
-  it('allows only activation state through the trusted-host control boundary', async () => {
+  it('allows only activation state through the narrow control endpoint', async () => {
     const service = fakeService()
     const handler = createActivationHandler(service)
 
@@ -219,7 +219,7 @@ describe('Mnemon RPC', () => {
     })
   })
 
-  it('keeps trusted-host activation disabled in read-only mode', async () => {
+  it('keeps activation disabled in read-only mode', async () => {
     const service = fakeService(false)
     await expect(createActivationHandler(service)('body', { memoryBodyId: 'project', active: true })).resolves.toMatchObject({
       ok: false,
@@ -228,7 +228,7 @@ describe('Mnemon RPC', () => {
     expect(service.updateBody).not.toHaveBeenCalled()
   })
 
-  it('keeps the legacy loopback reconnect route for older clients', async () => {
+  it('keeps the legacy management-channel reconnect route for older clients', async () => {
     const service = fakeService()
     await expect(createWriteHandler(service)('body-reconnect', { memoryBodyId: 'project' })).resolves.toMatchObject({ ok: true, value: { id: 'project', healthy: true } })
     expect(service.reconnectBody).toHaveBeenCalledWith('project')
@@ -554,23 +554,16 @@ describe('Mnemon RPC', () => {
     expect(service.remember).not.toHaveBeenCalled()
   })
 
-  it('fences read and write channels with different authorities', () => {
+  it('registers every channel on the authenticated Host API', () => {
     const handle = vi.fn()
     const connection = { rpc: { handle } } as unknown as HostConnectionHandle
     registerRpc(connection, fakeService())
-    expect(handle).toHaveBeenCalledWith(MNEMON_READ_CHANNEL, expect.any(Function), { authority: 'trusted-host' })
-    expect(handle).toHaveBeenCalledWith(MNEMON_ACTIVATION_CHANNEL, expect.any(Function), { authority: 'trusted-host' })
-    expect(handle).toHaveBeenCalledWith(MNEMON_WRITE_CHANNEL, expect.any(Function), { authority: 'loopback' })
+    expect(handle).toHaveBeenCalledWith(MNEMON_READ_CHANNEL, expect.any(Function))
+    expect(handle).toHaveBeenCalledWith(MNEMON_ACTIVATION_CHANNEL, expect.any(Function))
+    expect(handle).toHaveBeenCalledWith(MNEMON_WRITE_CHANNEL, expect.any(Function))
   })
 
-  it('grants the write channel to an explicitly trusted remote Host', () => {
-    const handle = vi.fn()
-    const connection = { rpc: { handle } } as unknown as HostConnectionHandle
-    registerRpc(connection, fakeService(), undefined, undefined, undefined, undefined, undefined, 'trusted-host')
-    expect(handle).toHaveBeenCalledWith(MNEMON_WRITE_CHANNEL, expect.any(Function), { authority: 'trusted-host' })
-  })
-
-  it('keeps Pack backup and restore on a dedicated loopback channel', async () => {
+  it('keeps Pack backup and restore on a dedicated authenticated channel', async () => {
     const packs = {
       target: vi.fn(() => ({ root: '/tmp/mnemon', scope: 'custom' })),
       exportPack: vi.fn(async () => ({ fileName: 'backup.zip', base64: 'eA==' })),
@@ -594,11 +587,7 @@ describe('Mnemon RPC', () => {
 
     const handle = vi.fn()
     registerRpc({ rpc: { handle } } as unknown as HostConnectionHandle, fakeService(), undefined, undefined, undefined, packs)
-    expect(handle).toHaveBeenCalledWith(MNEMON_PACK_CHANNEL, expect.any(Function), { authority: 'loopback' })
-
-    const remoteHandle = vi.fn()
-    registerRpc({ rpc: { handle: remoteHandle } } as unknown as HostConnectionHandle, fakeService(), undefined, undefined, undefined, packs, undefined, 'trusted-host')
-    expect(remoteHandle).toHaveBeenCalledWith(MNEMON_PACK_CHANNEL, expect.any(Function), { authority: 'trusted-host' })
+    expect(handle).toHaveBeenCalledWith(MNEMON_PACK_CHANNEL, expect.any(Function))
   })
 
   it('keeps the live write channel stable but rejects it in read-only mode', async () => {

@@ -132,7 +132,7 @@ describe('conversation interaction surfaces', () => {
     expect(screen.queryByText('saveAction.result')).toBeNull()
   })
 
-  it('keeps supervised message writes read-only when the Host management grant is unavailable', async () => {
+  it('keeps supervised message writes read-only when Host settings are not writable', async () => {
     const rpcCall = vi.fn(async (_channel: string, endpoint: string) => {
       if (endpoint === 'status') return { ok: true as const, value: { writeEnabled: true } }
       if (endpoint === 'assistant-message') return { ok: true as const, value: { messageId: 'message-1', text: 'A durable project decision.' } }
@@ -150,7 +150,7 @@ describe('conversation interaction surfaces', () => {
     expect(rpcCall.mock.calls.some(([, endpoint]) => endpoint === 'supervise')).toBe(false)
   })
 
-  it('allows supervised message writes on an explicitly authorized remote Host', async () => {
+  it('allows supervised message writes when authenticated Host settings are writable', async () => {
     const rpcCall = vi.fn(async (_channel: string, endpoint: string) => {
       if (endpoint === 'status') return { ok: true as const, value: { writeEnabled: true } }
       if (endpoint === 'assistant-message') return { ok: true as const, value: { messageId: 'message-1', text: 'A durable project decision.' } }

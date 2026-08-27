@@ -117,7 +117,7 @@ RPC 是 DSH Host 与插件客户端之间的内部桥，不是稳定外部 HTTP 
 
 ```text
 channel:   /dsh-mnemon-read
-authority: trusted-host
+authentication: DSH browser session
 ```
 
 | Endpoint | 行为 |
@@ -137,11 +137,11 @@ authority: trusted-host
 
 ### 写通道
 
-记忆体激活使用权限更窄、可供远程受信 Host 使用的控制面：
+记忆体激活使用独立控制通道和更窄的请求 schema：
 
 ```text
 channel:   /dsh-mnemon-activation
-authority: trusted-host
+authentication: DSH browser session
 endpoint:  body
 ```
 
@@ -151,7 +151,7 @@ endpoint:  body
 
 ```text
 channel:   /dsh-mnemon-write
-authority: loopback（`remoteAccess=trusted-host` 时为 trusted-host）
+authentication: DSH browser session
 ```
 
 | Endpoint | 行为 |
@@ -165,15 +165,15 @@ authority: loopback（`remoteAccess=trusted-host` 时为 trusted-host）
 | `provider-services` / `provider-service-update` | 为本地设置 UI 读取 Provider 私密配置，或更新单个服务 |
 | `version-update` | 更新明确组件；Host 固定命令与参数 |
 
-包含本地编辑器所需已保存凭据值的私密 `provider-services` 响应只存在于该 loopback 通道。trusted-host 读端点始终返回脱敏目录。
+包含设置编辑器所需已保存凭据值的私密 `provider-services` 响应只存在于该管理通道。普通读端点始终返回脱敏目录。
 
-`writeEnabled=false` 时激活控制与写通道仍稳定注册，但所有 mutation 都在 Host 边界拒绝。远程 trusted-host 客户端也会在发起传输前禁用所有 loopback-only 控件，同时保留激活开关。
+`writeEnabled=false` 时激活控制与写通道仍稳定注册，但所有 mutation 都在 Host 边界拒绝。浏览器也会根据 Host settings snapshot 在传输前禁用 mutation 控件。
 
 ### 备份通道
 
 ```text
 channel:   /dsh-mnemon-pack
-authority: loopback（`remoteAccess=trusted-host` 时为 trusted-host）
+authentication: DSH browser session
 ```
 
 | Endpoint | 行为 |
@@ -183,18 +183,20 @@ authority: loopback（`remoteAccess=trusted-host` 时为 trusted-host）
 | `inspect` | 解析并校验待导入 ZIP，返回组件与占用预览 |
 | `import` | 把 ZIP 安全合并到当前有效根；只读模式拒绝 |
 
-备份包含私有记忆，因此默认保持 loopback-only；远程管理模式必须由部署层认证保护。
+备份包含私有记忆；调用方必须把已认证 DSH 浏览器会话视为完整 Host 权限，并单独保护导出的归档。
 
 ### 设置通道
 
 ```text
 channel:   /dsh-mnemon-settings
-authority: loopback（`remoteAccess=trusted-host` 时为 trusted-host）
+authentication: DSH browser session
 namespaces: mnemon, mnemon-ui
 endpoints: get, mutate
 ```
 
 mutation 使用 settings revision 防止覆盖并发编辑。`mnemon` 管理 Host / 存储设置；`mnemon-ui` 管理 `turnBar` 与 `saveAction`。
+
+DSH 0.1.2-alpha.1 使用同一个浏览器会话认证完整 Host API。这些通道用于拆分 schema、载荷敏感度与兼容路由，不再构成逐方法的权限层。
 
 ## npm 导出与扩展服务
 

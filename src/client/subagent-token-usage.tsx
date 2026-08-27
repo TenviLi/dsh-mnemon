@@ -1,10 +1,7 @@
 /** Mnemon compatibility shim for DSH's fork-backed subagent token metric. */
 import { createElement, type ComponentType, type ReactElement } from 'react'
-import type {
-  SessionListState, SessionSummary,
-} from '@deepseek-ai/dsh-client-runtime/client'
 import type { SnapshotSelectorHook, StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
-import type { MnemonClientContext } from './dsh-compat.ts'
+import type { MnemonClientContext, MnemonSessionListState, MnemonSessionSummary } from './dsh-compat.ts'
 
 export const MNEMON_SUBAGENT_TOKEN_USAGE_KEY = 'mnemonSubagentTokenUsage'
 const SUBAGENT_LINEAGE_SLOT = 'conversation.session.header.lineage'
@@ -20,11 +17,11 @@ export interface MnemonTokenUsageProjection {
 
 type ProjectionRecord = Readonly<Record<string, unknown>>
 type LineageProps = Record<string, unknown> & {
-  useSessions: SnapshotSelectorHook<SessionListState>
+  useSessions: SnapshotSelectorHook<MnemonSessionListState>
 }
 type LineageComponent = ComponentType<LineageProps>
 
-const scopedSnapshots = new WeakMap<SessionListState, SessionListState>()
+const scopedSnapshots = new WeakMap<MnemonSessionListState, MnemonSessionListState>()
 
 function isTokenUsage(value: unknown): value is MnemonTokenUsageProjection {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
@@ -41,10 +38,10 @@ function isTokenUsage(value: unknown): value is MnemonTokenUsageProjection {
  * released official catalog component. All other consumers continue seeing
  * DSH's complete-log `tokenUsage` value.
  */
-export function scopeSubagentTokenUsage(state: SessionListState): SessionListState {
+export function scopeSubagentTokenUsage(state: MnemonSessionListState): MnemonSessionListState {
   const cached = scopedSnapshots.get(state)
   if (cached !== undefined) return cached
-  let byId: SessionListState['byId'] | undefined
+  let byId: MnemonSessionListState['byId'] | undefined
   for (const [id, summary] of Object.entries(state.byId)) {
     if (summary.origin !== 'subagent') continue
     const projections = summary.projectionValues as ProjectionRecord | undefined
@@ -56,7 +53,7 @@ export function scopeSubagentTokenUsage(state: SessionListState): SessionListSta
       projectionValues: {
         ...projections,
         tokenUsage: scopedUsage,
-      } as NonNullable<SessionSummary['projectionValues']>,
+      } as NonNullable<MnemonSessionSummary['projectionValues']>,
     }
   }
   const scoped = byId === undefined ? state : { ...state, byId }
@@ -66,10 +63,10 @@ export function scopeSubagentTokenUsage(state: SessionListState): SessionListSta
 
 /** Wrap the framework hook while preserving its selector/equality contract. */
 export function createScopedUseSessions(
-  useSessions: SnapshotSelectorHook<SessionListState>,
-): SnapshotSelectorHook<SessionListState> {
+  useSessions: SnapshotSelectorHook<MnemonSessionListState>,
+): SnapshotSelectorHook<MnemonSessionListState> {
   return <Selected,>(
-    selector: (state: SessionListState) => Selected,
+    selector: (state: MnemonSessionListState) => Selected,
     equal?: (left: Selected, right: Selected) => boolean,
   ): Selected => useSessions(state => selector(scopeSubagentTokenUsage(state)), equal)
 }

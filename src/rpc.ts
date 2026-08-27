@@ -1,4 +1,4 @@
-import type { HostConnectionHandle, HostRpcAuthority, HostRpcHandler, RpcResult } from './contracts.ts'
+import type { HostConnectionHandle, HostRpcHandler, RpcResult } from './contracts.ts'
 import type { MnemonLifecycle } from './lifecycle.ts'
 import type { RuntimeMemoryController, RuntimeMemoryImportance, RuntimeMemoryTarget } from './runtime-memory.ts'
 import type { Category, EdgeType, Intent, MnemonService, SearchRequest, Source } from './service.ts'
@@ -338,11 +338,7 @@ export function createReadHandler(input: RuntimeInput, lifecycle?: MnemonLifecyc
 
 const ACTIVATION_PAYLOAD_FIELDS = new Set(['memoryBodyId', 'active', 'sessionId', 'workspaceId'])
 
-/**
- * Expose only DSH read-routing activation to trusted Web hosts. Metadata,
- * provider connections, credentials, and durable memory writes stay on the
- * loopback-only write channel.
- */
+/** Keep activation on a narrow, independently validated control endpoint. */
 export function createActivationHandler(input: RuntimeInput): HostRpcHandler {
   return async (endpoint, rawPayload) => {
     try {
@@ -376,8 +372,8 @@ export function createWriteHandler(input: RuntimeInput, lifecycle?: MnemonLifecy
       }
       const resolved = runtimeFor(input, payload, runtimeMemory)
       const { service } = resolved.graph
-      // Stored Provider secrets are configuration-plane data. Reading them is
-      // loopback-only even when semantic writes are disabled.
+      // Stored Provider secrets remain on the management channel rather than
+      // the ordinary redacted catalog, independently of semantic write mode.
       if (endpoint === 'provider-services') return success(service.memoryBodies.providerServices({ includeSecrets: true }))
       if (!service.config.writeEnabled) throw new Error('dsh-mnemon is configured read-only (writeEnabled: false)')
       const selectedWorkspace = resolved.route?.selectedWorkspace
@@ -602,8 +598,8 @@ export function createWriteHandler(input: RuntimeInput, lifecycle?: MnemonLifecy
             if (maintained.updates.length > 0) service.updateBodyMetadata(maintained.updates)
             return success(maintained)
           }
-        // Compatibility route for clients released before card reconnect was
-        // correctly classified as a trusted-host read operation.
+        // Compatibility route for clients released before card reconnect
+        // moved from the management channel to the read channel.
         case 'body-reconnect':
           return success(await service.reconnectBody(String(payload.memoryBodyId ?? '')))
         case 'body-delete':
@@ -617,7 +613,7 @@ export function createWriteHandler(input: RuntimeInput, lifecycle?: MnemonLifecy
   }
 }
 
-/** Backup payloads contain private memory and use the deployment's management authority. */
+/** Backup payloads contain private memory and stay behind DSH browser authentication. */
 export function createPackHandler(input: MnemonPackManager | LiveMnemonRuntime, writeEnabled: boolean | (() => boolean) = true): HostRpcHandler {
   return async (endpoint, rawPayload) => {
     try {
@@ -640,15 +636,15 @@ export function createPackHandler(input: MnemonPackManager | LiveMnemonRuntime, 
   }
 }
 
-/** Reads and activation use trusted hosts; other privileged channels require explicit promotion. */
-export function registerRpc(connection: HostConnectionHandle, input: RuntimeInput, lifecycle?: MnemonLifecycle, runtimeMemory?: RuntimeMemoryController, storage?: StorageScopeInspector, packs?: MnemonPackManager, versions?: VersionUpdateManager, managementAuthority: HostRpcAuthority = 'loopback'): void {
+/** Register every Mnemon endpoint behind DSH's authenticated Host API boundary. */
+export function registerRpc(connection: HostConnectionHandle, input: RuntimeInput, lifecycle?: MnemonLifecycle, runtimeMemory?: RuntimeMemoryController, storage?: StorageScopeInspector, packs?: MnemonPackManager, versions?: VersionUpdateManager): void {
   const versionManager = versions ?? new VersionUpdateManager({ mnemonCliPath: () => findVersionCli(input) })
-  connection.rpc.handle(MNEMON_READ_CHANNEL, createReadHandler(input, lifecycle, runtimeMemory, storage, versionManager), { authority: 'trusted-host' })
-  connection.rpc.handle(MNEMON_ACTIVATION_CHANNEL, createActivationHandler(input), { authority: 'trusted-host' })
-  connection.rpc.handle(MNEMON_WRITE_CHANNEL, createWriteHandler(input, lifecycle, runtimeMemory, versionManager), { authority: managementAuthority })
+  connection.rpc.handle(MNEMON_READ_CHANNEL, createReadHandler(input, lifecycle, runtimeMemory, storage, versionManager))
+  connection.rpc.handle(MNEMON_ACTIVATION_CHANNEL, createActivationHandler(input))
+  connection.rpc.handle(MNEMON_WRITE_CHANNEL, createWriteHandler(input, lifecycle, runtimeMemory, versionManager))
   const packManager = isRoutedRuntime(input) ? input : packs
   const config = input.config
-  if (packManager !== undefined) connection.rpc.handle(MNEMON_PACK_CHANNEL, createPackHandler(packManager, () => config.writeEnabled), { authority: managementAuthority })
+  if (packManager !== undefined) connection.rpc.handle(MNEMON_PACK_CHANNEL, createPackHandler(packManager, () => config.writeEnabled))
 }
 
 function findVersionCli(input: RuntimeInput): string | undefined {

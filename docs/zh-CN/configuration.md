@@ -57,7 +57,6 @@ mnemon:
     mode: inherit # inherit | fixed
     # provider: deepseek # fixed 时必填
     # model: deepseek-chat # fixed 时必填
-  remoteAccess: read-only # read-only | trusted-host
 ```
 
 ## 选项
@@ -91,7 +90,6 @@ mnemon:
 | `tabEnabled` | `true` | boolean | 是否挂载 `displayMode` 指定的 Web 入口；关闭后 Host RPC、命令和 Agent 工具保持注册 |
 | `writeEnabled` | `true` | boolean | 是否暴露语义写工具、写 RPC 和写命令 |
 | `taskAgentModel` | `{ mode: inherit }` | `inherit` / `fixed` | AI 元信息、Agent 查询、记忆沉淀和档案归档使用的独立任务 Agent，以及空闲复盘 worker 的模型路由；`fixed` 必须同时保存 `provider` 与 `model`，并会钉住对应的写入、证据问答、Provider 选择、迁移、压缩、归档和元信息维护 worker。对话中的 Recall 与 Related 是 Host 直接读取，不使用该路由 |
-| `remoteAccess` | `read-only` | `read-only` / `trusted-host` | 非 loopback Web 页面是否只能读取，或可访问全部 Mnemon 管理 RPC；这是启动时权限边界，必须本地修改并重启 Host |
 | `mnemon-ui.turnBar` | `true` | boolean | 回合尾记忆活动条；默认开启，**保存后实时生效** |
 | `mnemon-ui.saveAction` | `true` | boolean | 已定稿助手回复旁的「存入记忆」图标与确认弹窗；默认开启，**保存后实时生效** |
 
@@ -149,14 +147,11 @@ WebUI 从 `memory-system` 描述符读取真实 Layer，因此扩展插件新增
 
 策略是纯函数、受限的 Host 扩展。其他插件可在运行图创建前调用 `registerRecallQualityPolicy(policy)`，然后在配置中选择该策略 ID。非法候选上限、决策或选择会回退到 `strict-v1`；配置未知 ID 会拒绝候选运行图。过滤计数通过结构化的 `source.quality` 返回，不会拼接进 Agent hint。
 
-`remoteAccess` 是唯一的启动时安全边界，不通过 Web 设置桥开放修改。默认 `read-only` 时，受信任远程域名可以读取并使用范围严格受限的记忆体激活通道；设置、ZIP 备份、Provider 连接以及其他写操作仍限制为 loopback。若部署已经在反向代理层提供可靠认证，可在 Host 本地配置中显式设置：
+### 浏览器认证
 
-```yaml
-mnemon:
-  remoteAccess: trusted-host
-```
+DSH 0.1.2-alpha.1 已移除逐方法的 `loopback` / `trusted-host` 权限层。所有 Mnemon RPC 统一经过 DSH 的浏览器会话边界，由一次性启动 token 换取签名 Cookie。通道拆分仍用于约束 schema 与载荷职责，但不再把不同方法授予不同调用方。
 
-随后重启 DSH Host。DSH Connection 还必须把实际访问 authority（例如 `rsi.griv.dev`）配置为 `trustedHosts`，且页面必须同源。`trustedHosts` 本身只校验请求是否发往预期 Host，不提供用户身份认证；不要在未认证的公网入口启用该模式。启用后，`/dsh-mnemon-write`、`/dsh-mnemon-settings` 和 `/dsh-mnemon-pack` 会一起开放，避免部分按钮继续以 403 失败。
+因此，已失效的 `remoteAccess` 设置已被删除；迁移到 DSH 0.1.2 时应从本地 patch 中移除。`writeEnabled=false` 仍是禁用语义 mutation 与 Pack 导入的产品级只读模式，但不能替代 DSH 身份认证；通过认证、可运行工具的 Host 会话本身就是完整权限主体。DSH 已发布版本的网络支持范围与 Host/Origin 限制仍然有效，不要把回环 HTTP 服务作为未认证的公网服务暴露。
 
 ## 存储范围
 

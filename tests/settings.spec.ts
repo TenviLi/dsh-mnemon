@@ -4,14 +4,12 @@ import { createSettingsHandler, registerSettingsRpc } from '../src/settings.ts'
 import { MNEMON_SETTINGS_CHANNEL } from '../src/shared/contracts.ts'
 
 describe('Mnemon settings bridge', () => {
-  it('keeps settings local by default and supports an explicit trusted Host', () => {
+  it('registers settings on the authenticated Host API', () => {
     const settings = {} as HostSettingsService
     const handle = vi.fn()
     const connection = { rpc: { handle } } as unknown as HostConnectionHandle
     registerSettingsRpc(connection, settings)
-    registerSettingsRpc(connection, settings, 'trusted-host')
-    expect(handle).toHaveBeenNthCalledWith(1, MNEMON_SETTINGS_CHANNEL, expect.any(Function), { authority: 'loopback' })
-    expect(handle).toHaveBeenNthCalledWith(2, MNEMON_SETTINGS_CHANNEL, expect.any(Function), { authority: 'trusted-host' })
+    expect(handle).toHaveBeenCalledWith(MNEMON_SETTINGS_CHANNEL, expect.any(Function))
   })
 
   it('exposes and mutates only the Mnemon namespace through a revision fence', async () => {
@@ -115,7 +113,7 @@ describe('Mnemon settings bridge', () => {
     ], undefined)
   })
 
-  it('does not let a remote settings client promote its own transport authority', async () => {
+  it('rejects the removed method-specific transport authority setting', async () => {
     const settings = {
       writable: true,
       register: vi.fn(),

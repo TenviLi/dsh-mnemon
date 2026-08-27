@@ -64,7 +64,7 @@ export interface MnemonViewProps {
   workspaceSelection?: MnemonWorkspaceSelection
   surface?: MnemonViewSurface
   t?: MnemonTranslate
-  locale?: 'zh' | 'en'
+  locale?: string
   onClose?: () => void
 }
 
@@ -275,9 +275,12 @@ const CATEGORY_KEYS: Record<string, MnemonKey> = {
 }
 
 const I18nContext = createContext<MnemonTranslate>(translateZh)
-const LocaleContext = createContext<'zh' | 'en'>('zh')
+const LocaleContext = createContext<string>('zh')
 function useT(): MnemonTranslate { return useContext(I18nContext) }
-function useLocale(): string { return useContext(LocaleContext) === 'en' ? 'en-US' : 'zh-CN' }
+function useLocale(): string {
+  const locale = useContext(LocaleContext)
+  return locale === 'en' ? 'en-US' : locale === 'zh' ? 'zh-CN' : locale
+}
 function categoryLabel(t: MnemonTranslate, category: string): string { return CATEGORY_KEYS[category] === undefined ? category : t(CATEGORY_KEYS[category]!) }
 
 function humanBytes(bytes: number): string {

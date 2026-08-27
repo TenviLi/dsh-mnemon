@@ -4,13 +4,44 @@
 
 ## 环境
 
-发布的插件仍为较旧且兼容的 DSH Host 保留 Node.js 20 engine 下限。当前源码检出中的 DSH 0.1.1-rc.2 验证工具链需要 Node.js `^22.19.0 || >=24.0.0`：rc.2 会导入 Node Zstd API 并使用 `Promise.withResolvers`，因此 Node 20 无法加载完整 rc.2 profile。CI 在 Node.js 22.19 和 24 上运行完整 Linux 验证链，并在 Node.js 24 上运行 Windows 验证链，均使用 pnpm 10.13.1。Node 24 构建完成后，CI 会切换到 Node 20，导入发布包全部 Node-compatible 子路径，作为插件运行时兼容 smoke。升级依赖时，应通过完整验证链路确认 DSH 与 Mnemon 兼容性。
+发布的插件仍为较旧且兼容的 DSH Host 保留 Node.js 20 engine 下限。Registry-backed 开发基线仍为 DSH 0.1.1-rc.2，其完整 profile 需要 Node.js `^22.19.0 || >=24.0.0`。CI 还会在 Node 24 上检出仅提供源码的 DSH 0.1.2-alpha.1 tag，构建 Harness、链接构建期 package，并运行 Mnemon 完整验证链。常规矩阵在 Node.js 22.19 和 24 上运行 Linux，并在 Node.js 24 上运行 Windows；Node 24 构建后还会切换 Node 20，导入全部 Node-compatible 发布子路径作为插件运行时兼容 smoke。
 
 安装依赖：
 
 ```sh
 pnpm install
 ```
+
+## DSH 0.1.2-alpha.1 源码验证
+
+该 alpha 刻意不发布到 npm。`package.json` 与 lockfile 继续保留最新已发布 DSH 基线，只在构建完成的 Harness 检出上覆盖生成的 `node_modules` 直连：
+
+```sh
+git clone https://github.com/deepseek-ai/deepseek-harness.git
+git -C deepseek-harness checkout dsh-v0.1.2-alpha.1
+pnpm --dir deepseek-harness install --frozen-lockfile
+pnpm --dir deepseek-harness run build:lib
+
+pnpm install --frozen-lockfile
+DSH_SOURCE_ROOT=/absolute/path/to/deepseek-harness pnpm run dsh:link-source
+pnpm run verify
+```
+
+链接命令会先校验每个 package 名称与 alpha 版本，在生成的 `node_modules` 中记录现有 registry 直连，然后才执行替换；它不会修改 `package.json` 或 `pnpm-lock.yaml`。验证后运行 `pnpm run dsh:restore-registry` 即可精确恢复所记录的链接；普通的 up-to-date install 会保留人工替换的链接。兼容工作覆盖已移除的 client runtime、由 controller/renderer 新归属的客户端服务、可扩展 locale ID、Workspace snapshot 变化，以及统一认证后的 Host RPC 注册。
+
+### 兼容性研究结论
+
+[上游 alpha release](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.2-alpha.1) 的范围远超插件接口；[完整比较](https://github.com/deepseek-ai/deepseek-harness/compare/dsh-v0.1.1-rc.2...dsh-v0.1.2-alpha.1) 同时覆盖 Client、Host、SDK、profile、持久化、UI 与生成参考。与 Mnemon 直接相关的结论如下：
+
+- `@deepseek-ai/dsh-client-runtime` 已删除。Session / Workspace 状态分别归属 API controller，可观察契约归属 `dsh-client-store`，`ctx.slots` 归属 UI renderer。
+- `conversation.chat.turnTail` 等 Chat 专属 slot contract 已移出 target-neutral conversation package；Mnemon 现在只声明 selector 所需的最小边界，不再导入旧 owner。
+- Workspace 列表不再提供 `recentWorkspaceId`；Mnemon 优先匹配当前 session 的 canonical cwd，否则选择首个可用 workspace。
+- 第三方语言包可以扩展 locale ID；Mnemon 会把未知 active locale 原样传给日期格式化，自身词典仍经 DSH locale fallback 解析。
+- `HostConnectionRpc.handle()` 不再接受逐方法 authority 选项；所有 RPC 与 stream 统一要求由启动 token 建立的浏览器会话。因此 Mnemon 删除 `remoteAccess`，通道拆分只表达 schema 与数据职责。
+- 旧 ApiProxy transport 已由 Remote/gateway API 取代；Mnemon 使用的 generic Connection channel 仍受支持。Headless 进度改写 stderr，不影响插件对 stdout 结果的断言。
+- DSH 新增 subagent 模型配置并调整 token 统计，但官方 lineage 行仍读取通用的完整日志 projection；Mnemon 因此保留 child-local projection wrapper，并针对 alpha slot ledger 验证。
+
+由于 alpha 仅提供源码，仓库不会提交不存在的 `0.1.2-alpha.1` registry dependency。在 DSH 发布 registry build 前，专用 CI job 是可复现的兼容性事实源。
 
 ## 标准命令
 
@@ -103,7 +134,7 @@ Host 将所有 package dependency 保持为 external。Client 将 React、ReactD
 - Documents 路径、frontmatter、搜索、LRU、归档与冲突；
 - worker 工具隔离、schema 子集、结构化回执；
 - 生命周期 cue、评分、idle debounce、取消和水位保留；
-- RPC authority、只读行为和设置 revision；
+- RPC 认证注册、只读行为和设置 revision；
 - Web 工作台、双语文案和关键交互；
 - 不依赖 Web 专有服务的核心激活，以及 Headless 按 Agent cwd 路由；
 - Client/Host 源码边界、确定性构建 hash、发布包内容、exports 和 TypeScript 解析。

@@ -11,12 +11,11 @@ export type {
   SettingsOperation,
 } from './shared/contracts.ts'
 
-export type HostRpcHandler = (endpoint: string, payload: unknown) => Promise<RpcResult<unknown>>
-export type HostRpcAuthority = 'trusted-host' | 'loopback'
+export type HostRpcHandler = (endpoint: string, payload: unknown, signal?: AbortSignal) => Promise<RpcResult<unknown>>
 
 export interface HostConnectionHandle {
   rpc: {
-    handle(channel: string, handler: HostRpcHandler, options: { authority: HostRpcAuthority }): unknown
+    handle(channel: string, handler: HostRpcHandler): unknown
   }
 }
 

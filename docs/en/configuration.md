@@ -57,7 +57,6 @@ mnemon:
     mode: inherit # inherit | fixed
     # provider: deepseek # required for fixed
     # model: deepseek-chat # required for fixed
-  remoteAccess: read-only # read-only | trusted-host
 ```
 
 ## Options
@@ -91,7 +90,6 @@ mnemon:
 | `tabEnabled` | `true` | boolean | Whether to mount the Web entry selected by `displayMode`; Host RPC, commands, and Agent tools remain registered when off |
 | `writeEnabled` | `true` | boolean | Whether to expose semantic write tools, write RPC, and write commands |
 | `taskAgentModel` | `{ mode: inherit }` | `inherit` / `fixed` | Model route for independent task Agents used by AI metadata, Agent Query, memory distillation, and Document archiving, plus the idle-review worker; `fixed` requires both `provider` and `model` and also pins their bounded workers for write, answer, provider placement, migration, compaction, archive, and metadata maintenance. Conversation Recall and Related are direct Host reads and do not use this route |
-| `remoteAccess` | `read-only` | `read-only` / `trusted-host` | Whether non-loopback Web pages stay read-only or may use every Mnemon management RPC; this startup authority must be changed locally and requires a Host restart |
 | `mnemon-ui.turnBar` | `true` | boolean | Turn-tail memory activity bar; on by default, **applies live after saving** |
 | `mnemon-ui.saveAction` | `true` | boolean | “Save to memory” icon and confirmation on finalized assistant replies; on by default, **applies live after saving** |
 
@@ -149,14 +147,11 @@ The WebUI reads the live `memory-system` descriptor, so a Layer contributed by a
 
 Policies are pure, bounded host extensions. A plugin may call `registerRecallQualityPolicy(policy)` before the runtime graph is constructed, then select that policy id in configuration. Invalid limits, decisions, or selections fall back to `strict-v1`; an unknown configured id rejects the candidate runtime graph. Filtering counts are returned as structured `source.quality` statistics and are not appended to Agent hints.
 
-`remoteAccess` is the sole startup-time security boundary and cannot be changed through the Web settings bridge. With the default `read-only` mode, a trusted remote authority can read and use the narrow Memory Space activation channel; settings, ZIP backups, provider connections, and all broader mutations remain loopback-only. If the deployment already has reliable authentication at its reverse proxy, opt in from the Host's local configuration:
+### Browser authentication
 
-```yaml
-mnemon:
-  remoteAccess: trusted-host
-```
+DSH 0.1.2-alpha.1 removes method-specific `loopback` / `trusted-host` privilege tiers. Every Mnemon RPC now crosses the same DSH browser-session boundary established by the one-time launch token and signed cookie. Channel separation still keeps schemas and payload responsibilities narrow, but it no longer grants different callers different methods.
 
-Then restart the DSH Host. DSH Connection must also list the serving authority (for example, `rsi.griv.dev`) in `trustedHosts`, and the page must remain same-origin. `trustedHosts` verifies that a request targets an expected Host; it is not user authentication. Never enable this mode on an unauthenticated public endpoint. When enabled, `/dsh-mnemon-write`, `/dsh-mnemon-settings`, and `/dsh-mnemon-pack` are promoted together so the remote management UI does not fail partially with 403 responses.
+The obsolete `remoteAccess` setting has therefore been removed. Delete it from local patches when moving to DSH 0.1.2. `writeEnabled=false` remains a product-level read-only mode for semantic mutations and Pack import; it is not a substitute for DSH authentication, and an authenticated tool-capable Host session is a fully privileged principal. DSH's shipped network support and Host/Origin restrictions still apply—do not expose the loopback HTTP server as an unauthenticated public service.
 
 ## Storage Scopes
 

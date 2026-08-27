@@ -47,7 +47,6 @@ describe('Mnemon config and resolution', () => {
       idleReviewMs: 30_000,
       tabEnabled: true,
       writeEnabled: true,
-      remoteAccess: 'read-only',
       conversationInteraction: { turnBar: true, saveAction: true },
       persistenceStrategy: {
         mode: 'manual',
@@ -186,8 +185,8 @@ describe('Mnemon config and resolution', () => {
       .toThrow('at least one allowed provider')
   })
 
-  it('requires an explicit trusted-host grant for remote management', () => {
-    expect(resolveConfig({ remoteAccess: 'trusted-host' }).remoteAccess).toBe('trusted-host')
+  it('does not expose the removed method-specific remote authority setting', () => {
+    expect(resolveConfig({ remoteAccess: 'trusted-host' } as never)).not.toHaveProperty('remoteAccess')
   })
 
   it('keeps explicit conversation-surface opt-outs', () => {

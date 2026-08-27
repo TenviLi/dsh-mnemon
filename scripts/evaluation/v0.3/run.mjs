@@ -338,7 +338,6 @@ function profilePatch(options, dataDir) {
     `    idleReviewMs: ${options.idleReviewMs}`,
     `    tabEnabled: true`,
     `    writeEnabled: true`,
-    `    remoteAccess: read-only`,
     `    timeoutMs: 30000`,
     `    defaultRecallLimit: 10`,
   ]
