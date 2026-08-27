@@ -24,7 +24,7 @@ function scopedSystemPrompt(agent: HostAgent): SystemPromptRegistry | undefined 
   return agent.ctx.get?.('systemPrompt') as SystemPromptRegistry | undefined
 }
 
-function memoryPromptText(value: string): string {
+export function memoryPromptText(value: string): string {
   return value.replaceAll(
     LITERAL_OPEN_BRACES,
     `{{${RUNTIME_MEMORY_LITERAL_OPEN_BRACES_VARIABLE}}}`,
@@ -53,14 +53,12 @@ export function applyAgentMemoryViewWake<T extends { sections: Array<{ name: str
   })
   if (!protocolFound && protocol !== '') sections.push({ name: RUNTIME_MEMORY_PROTOCOL_SECTION_NAME, text: protocol })
 
-  const rendered = wake === undefined ? '' : memoryPromptText(wake.text)
-  let found = false
-  const contexts = assembly.contexts.map(context => {
-    if (context.name !== RUNTIME_MEMORY_CONTEXT_NAME) return context
-    found = true
-    return { ...context, text: rendered }
-  })
-  if (!found) contexts.push({ name: RUNTIME_MEMORY_CONTEXT_NAME, text: rendered })
+  // The snapshot is no longer a shared runtime-context contribution: it is
+  // injected as this plugin's own message (see MnemonAgentLifecycle.injectMemory)
+  // so it is attributed to dsh-mnemon and cannot invalidate other plugins'
+  // stable context. Any inherited contribution is cleared here so a profile
+  // upgraded in place stops emitting it through the shared projection.
+  const contexts = assembly.contexts.filter(context => context.name !== RUNTIME_MEMORY_CONTEXT_NAME)
   return { ...assembly, sections, contexts }
 }
 
@@ -119,13 +117,6 @@ export function registerAgentMemoryViewContext(agent: HostAgent, wake: () => Mem
     order: 145,
     text: () => wakeHasRuntimeMemory(wake()) ? RUNTIME_MEMORY_PROTOCOL : '',
   })
-  const stopContext = prompt?.context?.({
-    name: RUNTIME_MEMORY_CONTEXT_NAME,
-    order: 145,
-    text: () => {
-      const current = wake()
-      return current === undefined ? '' : memoryPromptText(current.text)
-    },
-  })
-  return disposer(stopProtocol, stopContext)
+  // No context contribution: the snapshot travels as this plugin's own message.
+  return disposer(stopProtocol)
 }

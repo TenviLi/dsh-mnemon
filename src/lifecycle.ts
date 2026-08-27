@@ -17,7 +17,7 @@ import type { DocumentMutation } from './documents.ts'
 import { MnemonSubagentCoordinator, type DelegatedWriteResult } from './subagent.ts'
 import { scoreReviewActivity } from './review-activity.ts'
 import { TurnActivityProjection, type TurnMemoryActivity, type TurnMemoryActivitySnapshot } from './activity.ts'
-import { applyAgentMemoryViewWake, registerAgentMemoryViewContext } from './guidance.ts'
+import { applyAgentMemoryViewWake, memoryPromptText, registerAgentMemoryViewContext } from './guidance.ts'
 import type { AssistantMessageText, LifecycleAgentSnapshot, LifecycleCounters, LifecyclePhase, LifecycleSnapshot, ReviewActivityScore, TaskAgentModelCatalog } from './shared/contracts.ts'
 import type { PreparedMemoryPlacement } from './provider-placement.ts'
 import type { MemoryOperationScope, MemoryTurnContext, MemoryWake } from '../packages/contracts/src/index.ts'
@@ -217,6 +217,14 @@ class MnemonAgentLifecycle {
    * actually see, which is what makes a rewind self-correcting.
    */
   private cueInjected = false
+  /**
+   * Text of the runtime memory snapshot most recently injected as this
+   * plugin's own message. `.context()` used to get supersede-on-change for free
+   * from the host's runtime-context projection; carrying the snapshot as an own
+   * message means re-emitting on change is this plugin's responsibility, and
+   * the rendered text (which carries the revision digest) is the key.
+   */
+  private injectedMemoryText: string | undefined
   private idleReviewTimer: ReturnType<typeof setTimeout> | undefined
   private reviewController: AbortController | undefined
   private reviewRunning = false
@@ -255,7 +263,12 @@ class MnemonAgentLifecycle {
       }) as never),
       this.agent.ctx.on('session/event', ((session: HostAgent['session'], event: HostSessionEvent) => this.sessionEvent(session, event)) as never),
       this.agent.ctx.on('system-prompt/assemble', ((assembly: PromptAssembly, context: PromptAssemblyContext, next: () => Promise<PromptAssembly>) => this.assemblePrompt(assembly, context, next)) as never),
-      this.agent.ctx.on('agent/pre-step', ((payload: PreStepPayload, next: () => Promise<HostPreStepDecision>) => this.preStep(payload, next)) as never),
+      // `prepend: true` makes this the outermost pre-step participant, so it
+      // observes the fully assembled batch and appends after every other
+      // contributor's context. The snapshot therefore has no byte-stable
+      // context behind it, and `recordTurnMessages` sees the complete batch
+      // rather than a partial one.
+      this.agent.ctx.on('agent/pre-step', ((payload: PreStepPayload, next: () => Promise<HostPreStepDecision>) => this.preStep(payload, next)) as never, { prepend: true }),
       this.agent.ctx.on('agent/turn-stopping', ((payload: TurnStoppingPayload) => this.finishTurn(payload)) as never),
     ]
     return () => {
@@ -327,6 +340,24 @@ class MnemonAgentLifecycle {
     return false
   }
 
+  /**
+   * The runtime memory snapshot, as this plugin's own message, when it changed.
+   *
+   * `.context()` used to carry this inside the host's shared runtime-context
+   * projection. Carrying it here instead attributes it to dsh-mnemon and keeps
+   * a memory write from re-emitting other contributors' sections; supersede
+   * stays intact because the block is still a complete state replacing its
+   * predecessor, keyed on the rendered text's revision digest.
+   */
+  private memorySnapshotMessage(): HostUserMessage | undefined {
+    const wake = this.memoryWake()
+    if (wake === undefined) return undefined
+    const text = memoryPromptText(wake.text)
+    if (text.trim() === '' || text === this.injectedMemoryText) return undefined
+    this.injectedMemoryText = text
+    return createPluginMessage(text, 'recall', 'Runtime memory snapshot')
+  }
+
   private async preStep(payload: PreStepPayload, next: () => Promise<HostPreStepDecision>): Promise<HostPreStepDecision> {
     if (payload.step === 1) this.cancelIdleReview(true)
     const decision = await next()
@@ -348,21 +379,27 @@ class MnemonAgentLifecycle {
       return decision
     }
     if (decision.messages.length === 0) return decision
+    // Independent of the one-shot reminder gate below: memory can change at any
+    // point in a session, and each change must supersede the previous snapshot.
+    // Appended last so the snapshot sits at the bottom of this plugin's block.
+    const snapshot = this.memorySnapshotMessage()
+    const withSnapshot = (messages: HostUserMessage[]): HostUserMessage[] =>
+      snapshot === undefined ? messages : [...messages, snapshot]
 
     if (this.primePending) {
       this.primePending = false
       this.counters.primes += 1
       this.mark('prime')
     }
-    if (this.cueAlreadyVisible()) return decision
+    if (this.cueAlreadyVisible()) return { kind: 'enter', messages: withSnapshot(decision.messages) }
     const reminder = guidedReminder(this.config)
-    if (reminder === undefined) return decision
+    if (reminder === undefined) return { kind: 'enter', messages: withSnapshot(decision.messages) }
     this.cueInjected = true
     this.guidedTurns.add(payload.turn)
     if (this.config.recallMode === 'guided') this.counters.recallCues += 1
     if (this.config.writebackMode === 'guided' && this.config.writeEnabled) this.counters.writebackCues += 1
     this.mark(this.config.recallMode === 'guided' ? 'recall' : 'writeback')
-    return { kind: 'enter', messages: [...decision.messages, createPluginMessage(reminder, 'instructions', 'Optional memory recall and remember reminder')] }
+    return { kind: 'enter', messages: withSnapshot([...decision.messages, createPluginMessage(reminder, 'instructions', 'Optional memory recall and remember reminder')]) }
   }
 
   private async assemblePrompt(assembly: PromptAssembly, context: PromptAssemblyContext, next: () => Promise<PromptAssembly>): Promise<PromptAssembly> {

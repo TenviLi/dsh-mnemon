@@ -140,7 +140,13 @@ export interface HostSessionEvent {
 export type HostPreStepDecision = { kind: 'reject' } | { kind: 'enter'; messages: HostUserMessage[] }
 
 export interface HostAgentContext {
-  on(name: string, listener: (...args: never[]) => unknown): () => unknown
+  /**
+   * `options` is optional and forwarded verbatim to the host. `prepend`
+   * places the listener at the head of the chain, which for a waterfall
+   * means it observes the fully assembled result. Omitting it keeps the
+   * previous two-argument behaviour exactly.
+   */
+  on(name: string, listener: (...args: never[]) => unknown, options?: { prepend?: boolean }): () => unknown
   effect(callback: () => (() => unknown) | void, label?: string): () => unknown
   get?(name: string): unknown
 }
@@ -257,6 +263,12 @@ export interface HostContextShape {
   /** Cordis service publication; optional only for narrow test/headless shims. */
   provide?(name: string, value?: unknown, check?: () => boolean): unknown
   inject(services: string[], callback: (ctx: HostContextShape) => void): unknown
-  on(name: string, listener: (...args: never[]) => unknown): () => unknown
+  /**
+   * `options` is optional and forwarded verbatim to the host. `prepend`
+   * places the listener at the head of the chain, which for a waterfall
+   * means it observes the fully assembled result. Omitting it keeps the
+   * previous two-argument behaviour exactly.
+   */
+  on(name: string, listener: (...args: never[]) => unknown, options?: { prepend?: boolean }): () => unknown
   effect(callback: () => (() => unknown) | void, label?: string): () => unknown
 }
