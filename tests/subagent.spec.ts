@@ -1177,6 +1177,84 @@ describe('Mnemon memory subagent coordinator', () => {
     expect(memoryService.remember).not.toHaveBeenCalled()
     expect(runtime.compactAndMutate).toHaveBeenCalledOnce()
   })
+
+  it('does not turn caller cancellation into deterministic archive fallback', async () => {
+    const plan = maintenancePlan()
+    const controller = new AbortController()
+    const host = subagents(undefined, 'max-tokens')
+    host.start.mockImplementationOnce(async () => {
+      controller.abort()
+      return {
+        id: 'child-run-1',
+        result: Promise.resolve({ output: [], structured: undefined, stopReason: 'max-tokens' }),
+        dispose: vi.fn(async () => {}),
+      }
+    })
+    const runtime = {
+      mutate: vi.fn().mockRejectedValueOnce(new RuntimeMemoryCapacityError('memory', plan.used, plan.projected, plan.limit)),
+      planMaintenance: vi.fn(async () => plan),
+      compactAndMutate: vi.fn(),
+    } as unknown as RuntimeMemoryController
+    const memoryService = service()
+    addSecondWritableBody(memoryService)
+    const coordinator = new MnemonSubagentCoordinator(host.value, runtimeSource(runtime, memoryService) as never, undefined, toolRegistry().value)
+
+    await expect(coordinator.runtime(parent(), { action: 'add', target: 'memory', content: plan.pending!.content }, controller.signal))
+      .rejects.toMatchObject({ name: 'AbortError' })
+    expect(memoryService.rememberMany).not.toHaveBeenCalled()
+    expect(runtime.compactAndMutate).not.toHaveBeenCalled()
+  })
+
+  it('reports a later successful routing batch without double-counting migration', async () => {
+    const plan = maintenancePlan('memory', [
+      { content: `Project detail ${'a'.repeat(400)}`, importance: 'normal' },
+      { content: `Project history ${'b'.repeat(400)}`, importance: 'normal' },
+      { content: `Release gate ${'c'.repeat(400)}`, importance: 'critical' },
+    ])
+    const host = subagents({
+      summary: 'Route the release gate to release memory.',
+      action: 'planned',
+      routes: [{ sourceIndexes: [3], memoryBodyId: 'release' }],
+    })
+    host.start.mockResolvedValueOnce({
+      id: 'failed-run-1',
+      result: Promise.resolve({ output: [], structured: undefined, stopReason: 'max-tokens' }),
+      dispose: vi.fn(async () => {}),
+    })
+    const runtime = {
+      mutate: vi.fn().mockRejectedValueOnce(new RuntimeMemoryCapacityError('memory', plan.used, plan.projected, plan.limit)),
+      planMaintenance: vi.fn(async () => plan),
+      compactAndMutate: vi.fn(async () => ({
+        success: true,
+        target: 'memory',
+        added: plan.pending!.content,
+        usage: { used: 20, limit: 10_240 },
+      })),
+    } as unknown as RuntimeMemoryController
+    const memoryService = service()
+    addSecondWritableBody(memoryService)
+    const coordinator = new MnemonSubagentCoordinator(host.value, runtimeSource(runtime, memoryService) as never, undefined, toolRegistry().value)
+
+    await expect(coordinator.runtime(parent(), { action: 'add', target: 'memory', content: plan.pending!.content }, new AbortController().signal))
+      .resolves.toMatchObject({
+        maintenance: {
+          kind: 'mnemon-archive',
+          provider: 'spawn',
+          runId: 'child-run-1',
+          memoryBodyIds: ['project', 'release'],
+        },
+      })
+    expect(host.start).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(memoryService.rememberMany).mock.calls[0]![0].map(request => request.memoryBodyId))
+      .toEqual(['project', 'project', 'release'])
+    expect(coordinator.snapshot()).toMatchObject({
+      migrations: 1,
+      failures: 1,
+      lastRunId: 'child-run-1',
+      lastOperation: 'migration',
+    })
+  })
+
   it('accepts a skipped archive write only after exact Host recall verification', async () => {
     const sourceEntry = { content: 'Use SQLite for local storage.', importance: 'normal' as const }
     const plan = maintenancePlan('memory', [sourceEntry])

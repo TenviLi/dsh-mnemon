@@ -1458,6 +1458,7 @@ ${chunk.context}
             ARCHIVE_PERSONA,
           )
         } catch (error) {
+          signal.throwIfAborted()
           // The router is advisory only. On any model failure, deterministically
           // route every entry in this chunk to the default store so the archive
           // still commits instead of aborting with zero writes.
@@ -1465,7 +1466,7 @@ ${chunk.context}
           summaries.push(`batch ${chunkIndex + 1} routed to ${fallbackBody.id} deterministically (routing model failed: ${error instanceof Error ? error.message : String(error)})`)
           continue
         }
-        if (chunkIndex === 0) {
+        if (provider === 'host') {
           provider = delegated.provider
           runId = delegated.runId
         }
