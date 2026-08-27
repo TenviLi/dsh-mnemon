@@ -28,6 +28,7 @@ function agent(id: string, cwd: string): HostAgent {
 }
 
 afterEach(() => {
+  vi.unstubAllEnvs()
   for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 
@@ -61,6 +62,39 @@ describe('LiveMnemonRuntime workspace routing', () => {
     }))
     expect(runtime.runtimeMemory.limits).toEqual({ memory: 20_480, user: 10_240 })
     expect(runtime.config.runtimeMemory.maintenanceMaxTokens).toBe(32_768)
+    runtime.dispose()
+  })
+
+  it('combines an opt-in global USER.md with project memory under the same configured limits', async () => {
+    const globalRoot = temporaryDirectory('global-user-profile')
+    const projectRoot = temporaryDirectory('project-runtime')
+    vi.stubEnv('MNEMON_DATA_DIR', globalRoot)
+    const runtime = createRuntimeGraph(resolveConfig({
+      storageScope: 'custom',
+      dataDir: projectRoot,
+      runtimeUserScope: 'global',
+      runtimeMemory: { memoryLimitBytes: 20_480, userLimitBytes: 10_240 },
+      cliPath: '/fake/mnemon',
+    }))
+
+    await runtime.runtimeMemory.mutate({ action: 'add', target: 'user', content: 'Stash local changes before pulling.' })
+    await runtime.runtimeMemory.mutate({ action: 'add', target: 'memory', content: 'Exclude deployment YAML in this project.' })
+    await runtime.runtimeMemory.mutate({ action: 'add', target: 'user', content: `profile-capacity:${'u'.repeat(6_000)}` })
+    await runtime.runtimeMemory.mutate({ action: 'add', target: 'memory', content: `project-capacity-a:${'m'.repeat(6_000)}` })
+    await runtime.runtimeMemory.mutate({ action: 'add', target: 'memory', content: `project-capacity-b:${'m'.repeat(6_000)}` })
+
+    expect(runtime.runtimeMemory.userPath).toBe(join(globalRoot, 'runtime', 'USER.md'))
+    expect(runtime.runtimeMemory.memoryPath).toBe(join(projectRoot, 'runtime', 'MEMORY.md'))
+    const snapshot = runtime.runtimeMemory.snapshot()
+    expect(snapshot.entries.map(entry => entry.content)).toEqual(expect.arrayContaining([
+      'Stash local changes before pulling.',
+      'Exclude deployment YAML in this project.',
+    ]))
+    expect(snapshot.entries).toHaveLength(5)
+    expect(snapshot.targets.user).toMatchObject({ limit: 10_240, used: expect.any(Number) })
+    expect(snapshot.targets.user.used).toBeGreaterThan(4_096)
+    expect(snapshot.targets.memory).toMatchObject({ limit: 20_480, used: expect.any(Number) })
+    expect(snapshot.targets.memory.used).toBeGreaterThan(10_240)
     runtime.dispose()
   })
 

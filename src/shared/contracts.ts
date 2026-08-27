@@ -126,6 +126,8 @@ export interface ResolvedRecallQualityConfig {
 
 export interface Config {
   storageScope?: StorageScopeKind
+  /** Whether USER.md follows the selected storage root or stays in the global root. */
+  runtimeUserScope?: 'storage' | 'global'
   cliPath?: string
   dataDir?: string
   customPackId?: string
@@ -218,6 +220,7 @@ export interface InteractionConfig {
 
 export interface ResolvedConfig {
   storageScope: StorageScopeKind
+  runtimeUserScope: 'storage' | 'global'
   cliPath?: string
   dataDir?: string
   store?: string

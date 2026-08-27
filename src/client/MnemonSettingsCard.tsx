@@ -33,7 +33,7 @@ export interface MnemonSettingsCardProps {
   t?: MnemonTranslate
 }
 
-type CoreField = 'displayMode' | 'storageScope' | 'dataDir'
+type CoreField = 'displayMode' | 'storageScope' | 'runtimeUserScope' | 'dataDir'
 type EmbeddingField = 'embeddingEnabled' | 'embeddingEndpoint' | 'embeddingModel'
 type TaskAgentField = 'taskAgentModelMode' | 'taskAgentProvider' | 'taskAgentModel'
 type InteractionField = 'turnBar' | 'saveAction'
@@ -43,6 +43,7 @@ type Field = DraftField | TopologyField
 interface Draft extends Record<InteractionField, boolean> {
   displayMode: 'sidebar' | 'buildin'
   storageScope: string
+  runtimeUserScope: 'storage' | 'global'
   dataDir: string
   embeddingEnabled: boolean
   embeddingEndpoint: string
@@ -52,7 +53,7 @@ interface Draft extends Record<InteractionField, boolean> {
   taskAgentModel: string
 }
 
-const CORE_FIELDS: CoreField[] = ['displayMode', 'storageScope', 'dataDir']
+const CORE_FIELDS: CoreField[] = ['displayMode', 'storageScope', 'runtimeUserScope', 'dataDir']
 const EMBEDDING_FIELDS: EmbeddingField[] = ['embeddingEnabled', 'embeddingEndpoint', 'embeddingModel']
 const INTERACTION_FIELDS: InteractionField[] = ['turnBar', 'saveAction']
 const TASK_AGENT_FIELDS: TaskAgentField[] = ['taskAgentModelMode', 'taskAgentProvider', 'taskAgentModel']
@@ -73,6 +74,7 @@ function coreDraft(value: Config | undefined): Pick<Draft, CoreField | Embedding
   return {
     displayMode: resolved.displayMode ?? 'sidebar',
     storageScope: resolved.storageScope ?? (dataDir === '' ? 'global' : 'custom'),
+    runtimeUserScope: resolved.runtimeUserScope === 'global' ? 'global' : 'storage',
     dataDir,
     embeddingEnabled: resolved.embedding?.enabled === true,
     embeddingEndpoint: resolved.embedding?.endpoint?.trim() || DEFAULT_EMBEDDING_ENDPOINT,
@@ -127,6 +129,7 @@ function topologyOf(descriptor: MemorySystemDescriptor): MemoryTopologyDefinitio
 
 function validation(t: MnemonTranslate, draft: Draft): string | null {
   if (!['global', 'workspace', 'custom'].includes(draft.storageScope)) return t('config.invalidScope')
+  if (!['storage', 'global'].includes(draft.runtimeUserScope)) return t('config.invalidRuntimeUserScope')
   if (draft.storageScope === 'custom') {
     const directory = draft.dataDir.trim()
     if (directory === '') return t('config.customRequired')
@@ -393,7 +396,7 @@ export function MnemonSettingsCard({ scope, interactionScope: suppliedInteractio
 
   const coreDisabled = loading || saving || !coreSnapshot.writable
   const interactionDisabled = loading || saving || !interactionSnapshot.writable
-  const scopeChanging = dirty.has('storageScope') || dirty.has('dataDir')
+  const scopeChanging = dirty.has('storageScope') || dirty.has('runtimeUserScope') || dirty.has('dataDir')
   const embeddingChanging = EMBEDDING_FIELDS.some(field => dirty.has(field))
   const editLayerEnabled = (layerId: string, enabled: boolean): void => {
     setTopologyDraft(current => current === null ? current : {
@@ -429,6 +432,16 @@ export function MnemonSettingsCard({ scope, interactionScope: suppliedInteractio
           <div className={css.choiceGrid} role="radiogroup" aria-label={t('config.scopeAria')}>
             <ChoiceCard id="mnemon-storage-global" name="mnemon-storage" label={t('config.global')} detail={t('config.globalScopeHint')} checked={draft.storageScope !== 'workspace'} disabled={coreDisabled} onChange={() => edit('storageScope', draft.dataDir.trim() === '' ? 'global' : 'custom')} />
             <ChoiceCard id="mnemon-storage-workspace" name="mnemon-storage" label={t('config.workspace')} detail="<workspace>/.mnemon" checked={draft.storageScope === 'workspace'} disabled={coreDisabled} onChange={() => edit('storageScope', 'workspace')} />
+          </div>
+        </section>
+
+        <section className={css.section} aria-labelledby="mnemon-runtime-user-scope-heading">
+          <div className={css.sectionHeading}>
+            <div><h2 id="mnemon-runtime-user-scope-heading">{t('config.runtimeUserScopeTitle')}</h2><p>{t('config.runtimeUserScopeDescription')}</p></div>
+          </div>
+          <div className={css.choiceGrid} role="radiogroup" aria-label={t('config.runtimeUserScopeAria')}>
+            <ChoiceCard id="mnemon-runtime-user-storage" name="mnemon-runtime-user-scope" label={t('config.runtimeUserScopeStorage')} detail={t('config.runtimeUserScopeStorageHint')} checked={draft.runtimeUserScope === 'storage'} disabled={coreDisabled} onChange={() => edit('runtimeUserScope', 'storage')} />
+            <ChoiceCard id="mnemon-runtime-user-global" name="mnemon-runtime-user-scope" label={t('config.runtimeUserScopeGlobal')} detail={t('config.runtimeUserScopeGlobalHint')} checked={draft.runtimeUserScope === 'global'} disabled={coreDisabled} onChange={() => edit('runtimeUserScope', 'global')} />
           </div>
         </section>
 

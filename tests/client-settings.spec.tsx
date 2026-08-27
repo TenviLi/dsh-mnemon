@@ -475,6 +475,37 @@ describe('MnemonSettingsCard', () => {
     expect(unset).not.toHaveBeenCalled()
   })
 
+  it('configures a global USER.md independently from workspace project memory', async () => {
+    const mutate = vi.fn(async () => {})
+    const snapshot = {
+      status: 'ready' as const,
+      value: { storageScope: 'workspace' as const, runtimeUserScope: 'storage' as const },
+      base: {},
+      user: {},
+      revision: 0,
+      writable: true,
+      mode: 'host' as const,
+    }
+    const scope = {
+      snapshot,
+      getSnapshot() { return this.snapshot },
+      subscribe() { return () => {} },
+      set: vi.fn(async () => {}), unset: vi.fn(async () => {}), setPath: vi.fn(async () => {}), unsetPath: vi.fn(async () => {}),
+      mutate,
+    } satisfies ClientSettingsScope<Config> & { snapshot: typeof snapshot }
+
+    render(<MnemonSettingsCard scope={scope} />)
+
+    expect((screen.getByRole('radio', { name: /工作区/ }) as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByRole('radio', { name: /跟随记忆范围/ }) as HTMLInputElement).checked).toBe(true)
+    fireEvent.click(screen.getByRole('radio', { name: /全局用户档案/ }))
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => expect(mutate).toHaveBeenCalledWith([
+      { op: 'set', path: ['runtimeUserScope'], value: 'global' },
+    ]))
+  })
+
   it('uses the DSH-bound locale in the plugin configuration slot', () => {
     const snapshot = {
       status: 'ready' as const,
@@ -644,7 +675,7 @@ describe('MnemonSettingsCard', () => {
 
     render(<MnemonSettingsCard scope={scope} />)
 
-    expect((screen.getByRole('radio', { name: /全局/ }) as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByRole('radio', { name: /^全局$/ }) as HTMLInputElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: '保存' }) as HTMLButtonElement).disabled).toBe(true)
     expect(screen.getByText('当前部署的插件设置为只读。')).toBeTruthy()
   })

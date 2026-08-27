@@ -170,6 +170,8 @@ Manual creation always asks the user to choose. Smart selection is a distillatio
 | `workspace` | Uses `<workspace>/.mnemon`; local Providers that support workspace following move with the effective workspace |
 | `custom` | An explicit path with global semantics, useful for team conventions or isolated environments |
 
+Set `runtimeUserScope: global` together with `storageScope: workspace` to project the global USER.md profile and workspace MEMORY.md at the same time. User-profile writes stay global; project Runtime, Documents, Memory Spaces, and Provider state remain isolated. No existing entries are copied or deleted when switching.
+
 Remote Provider workspaces, users, banks, projects, containers, and URIs remain their own namespaces; switching the DSH workspace never silently rewrites them. In workspace mode, the workbench may inspect one selected workspace while the current conversation continues to execute in its own cwd. Independent task Agents launched from the workbench use the inspected workspace even when no main session is selected.
 
 ## Web, conversation, and Headless share one system

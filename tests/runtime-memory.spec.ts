@@ -140,6 +140,112 @@ describe('RuntimeMemoryController', () => {
     })
   })
 
+  it('combines a global USER.md with workspace MEMORY.md without moving or widening hidden entries', async () => {
+    const globalRoot = mkdtempSync(join(tmpdir(), 'dsh-mnemon-runtime-global-user-'))
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'dsh-mnemon-runtime-workspace-memory-'))
+    directories.push(globalRoot, workspaceRoot)
+    const globalRunner = { effectiveDataDir: () => globalRoot }
+    const workspaceRunner = { effectiveDataDir: () => workspaceRoot }
+    const global = new RuntimeMemoryController(globalRunner)
+    const workspace = new RuntimeMemoryController(workspaceRunner)
+    await global.mutate({ action: 'add', target: 'user', content: 'Always stash before pulling.' })
+    await global.mutate({ action: 'add', target: 'memory', content: 'Hidden global project fact.' })
+    await workspace.mutate({ action: 'add', target: 'user', content: 'Hidden workspace profile.' })
+    await workspace.mutate({ action: 'add', target: 'memory', content: 'Exclude environment YAML from commits.' })
+
+    const combined = new RuntimeMemoryController(workspaceRunner, undefined, undefined, undefined, globalRunner)
+    expect(combined.userPath).toBe(join(globalRoot, 'runtime', 'USER.md'))
+    expect(combined.userSourcePath).toBe(join(globalRoot, 'runtime', 'memories.json'))
+    expect(combined.memoryPath).toBe(join(workspaceRoot, 'runtime', 'MEMORY.md'))
+    expect(combined.snapshot().entries.map(entry => entry.content)).toEqual([
+      'Always stash before pulling.',
+      'Exclude environment YAML from commits.',
+    ])
+    expect(combined.contextText()).toContain('Always stash before pulling.')
+    expect(combined.contextText()).toContain('Exclude environment YAML from commits.')
+    expect(combined.contextText()).not.toContain('Hidden global project fact.')
+    expect(combined.contextText()).not.toContain('Hidden workspace profile.')
+
+    await combined.mutate({ action: 'add', target: 'user', content: 'Prefer concise answers.' })
+    await combined.mutate({ action: 'add', target: 'memory', content: 'Run tests before project commits.' })
+    expect(global.snapshot().entries.map(entry => entry.content)).toEqual([
+      'Always stash before pulling.',
+      'Hidden global project fact.',
+      'Prefer concise answers.',
+    ])
+    expect(workspace.snapshot().entries.map(entry => entry.content)).toEqual([
+      'Hidden workspace profile.',
+      'Exclude environment YAML from commits.',
+      'Run tests before project commits.',
+    ])
+
+    const userPlan = await combined.planMaintenance({ action: 'add', target: 'user', content: 'Prefer Chinese replies.' })
+    await combined.compactAndMutate(
+      userPlan.revision,
+      { action: 'add', target: 'user', content: 'Prefer Chinese replies.' },
+      [{ content: 'Keep local changes safe before Git synchronization.', importance: 'critical' }],
+    )
+    expect(global.snapshot().entries.map(entry => entry.content)).toEqual([
+      'Hidden global project fact.',
+      'Keep local changes safe before Git synchronization.',
+      'Prefer Chinese replies.',
+    ])
+
+    const compactedMemory = await combined.compactTarget(
+      workspace.snapshot().revision,
+      'memory',
+      [{ content: 'Keep project configuration YAML out of commits.', importance: 'critical' }],
+    )
+    expect(compactedMemory.entries.map(entry => entry.content)).toEqual([
+      'Keep local changes safe before Git synchronization.',
+      'Prefer Chinese replies.',
+      'Keep project configuration YAML out of commits.',
+    ])
+  })
+
+  it('keeps the global profile visible while branch-filtering only workspace memory', async () => {
+    const globalRoot = mkdtempSync(join(tmpdir(), 'dsh-mnemon-runtime-global-branch-user-'))
+    const workspaceRoot = mkdtempSync(join(tmpdir(), 'dsh-mnemon-runtime-workspace-branch-memory-'))
+    directories.push(globalRoot, workspaceRoot)
+    const globalRunner = { effectiveDataDir: () => globalRoot }
+    const workspaceRunner = { effectiveDataDir: () => workspaceRoot }
+    const global = new RuntimeMemoryController(globalRunner)
+    const workspace = new RuntimeMemoryController(workspaceRunner)
+    await global.mutate({ action: 'add', target: 'user', content: 'Use the global user profile.' })
+    await global.mutate({ action: 'add', target: 'memory', content: 'Hidden global project memory.' })
+    await workspace.mutate({ action: 'add', target: 'user', content: 'Hidden workspace user profile.' })
+    await workspace.mutate({ action: 'add', target: 'memory', content: 'Shared workspace fact.' })
+    await workspace.mutate({ action: 'add', target: 'memory', content: 'Main-only workspace fact.', branches: ['main'] })
+    await workspace.mutate({ action: 'add', target: 'memory', content: 'Dev-only workspace fact.', branches: ['dev'] })
+
+    const combined = new RuntimeMemoryController(workspaceRunner, undefined, undefined, undefined, globalRunner)
+    const complete = combined.snapshot()
+    const onMain = combined.contextProjection('main')
+    const onDev = combined.contextProjection('dev')
+
+    expect(complete.entries.map(entry => entry.content)).toEqual([
+      'Use the global user profile.',
+      'Shared workspace fact.',
+      'Main-only workspace fact.',
+      'Dev-only workspace fact.',
+    ])
+    expect(onMain.revision).toBe(complete.revision)
+    expect(onDev.revision).toBe(complete.revision)
+    expect(onMain.text).toContain('Use the global user profile.')
+    expect(onMain.text).toContain('Shared workspace fact.')
+    expect(onMain.text).toContain('Main-only workspace fact.')
+    expect(onMain.text).not.toContain('Dev-only workspace fact.')
+    expect(onMain.text).not.toContain('Hidden global project memory.')
+    expect(onMain.text).not.toContain('Hidden workspace user profile.')
+    expect(onMain.text).toContain('Git branch: main (1 branch-scoped entry hidden)')
+    expect(onMain.text).toContain(`Contents of MEMORY.md (working reference; entries: 2; UTF-8 bytes: ${complete.targets.memory.used}/${complete.targets.memory.limit})`)
+    expect(onDev.text).toContain('Use the global user profile.')
+    expect(onDev.text).toContain('Dev-only workspace fact.')
+    expect(onDev.text).not.toContain('Main-only workspace fact.')
+    expect(readFileSync(combined.memoryPath, 'utf8')).toContain('Main-only workspace fact.')
+    expect(readFileSync(combined.memoryPath, 'utf8')).toContain('Dev-only workspace fact.')
+  })
+
   it('repairs derived files from memories.json when a controller starts', async () => {
     const { directory, controller } = fixture()
     await controller.mutate({ action: 'add', target: 'memory', content: 'source-owned value' })

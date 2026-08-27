@@ -12,7 +12,7 @@ $DSH_HOME/settings.yaml
 
 默认通常是 `~/.dsh/settings.yaml`。当前全部配置标记为 `live` 生效；保存后会先初始化候选运行图，再原子切换 Host 服务。
 
-Web 设置页编辑 `displayMode`、`storageScope`、`dataDir`、Mnemon Native 的 Ollama 嵌入覆盖、三个记忆层的总开关、后台任务 Agent 的模型路由，以及 `mnemon-ui` 下的回合记忆条和存入记忆按钮。“全局 / 工作区”是整个记忆系统的范围；`custom` 数据位置、嵌入运行配置与 ZIP 备份 / 迁移收纳在 Mnemon Native 折叠栏。每个第三方 Provider 有独立的服务配置折叠栏；这里保存的是 endpoint、凭据或可执行文件等可复用服务信息，不会创建记忆体。具体记忆体及其数据范围仍在“记忆体 → 概览”中创建。其他高级项需要直接修改 YAML。
+Web 设置页编辑 `displayMode`、`storageScope`、独立的 `runtimeUserScope`、`dataDir`、Mnemon Native 的 Ollama 嵌入覆盖、三个记忆层的总开关、后台任务 Agent 的模型路由，以及 `mnemon-ui` 下的回合记忆条和存入记忆按钮。“全局 / 工作区”是整个记忆系统的范围；USER.md 用户档案也可以显式保持全局，而项目记忆继续跟随该范围。`custom` 数据位置、嵌入运行配置与 ZIP 备份 / 迁移收纳在 Mnemon Native 折叠栏。每个第三方 Provider 有独立的服务配置折叠栏；这里保存的是 endpoint、凭据或可执行文件等可复用服务信息，不会创建记忆体。具体记忆体及其数据范围仍在“记忆体 → 概览”中创建。其他高级项需要直接修改 YAML。
 
 ## 完整示例
 
@@ -20,6 +20,7 @@ Web 设置页编辑 `displayMode`、`storageScope`、`dataDir`、Mnemon Native �
 mnemon:
   displayMode: sidebar # sidebar | buildin
   storageScope: global # global | workspace | custom
+  runtimeUserScope: storage # storage | global
   # dataDir: ~/mnemon-data       # custom 时必填
   # cliPath: /opt/homebrew/bin/mnemon
   # store: legacy-store          # 兼容发现提示，不是常规路由目标
@@ -65,6 +66,7 @@ mnemon:
 |---|---:|---|---|
 | `displayMode` | `sidebar` | `sidebar` / `buildin` | `sidebar` 挂载左侧栏独立工作台；`buildin` 恢复 DSH 原生对话区标签页；保存后实时切换且不会同时挂载两个入口 |
 | `storageScope` | `global` | `global` / `workspace` / `custom` | 统一控制 Runtime、Documents、Memory Spaces 和预留 state 根目录 |
+| `runtimeUserScope` | `storage` | `storage` / `global` | 让 USER.md 跟随当前存储根，或叠加全局 USER.md，同时保持项目 MEMORY.md 与其他层使用所选范围 |
 | `dataDir` | 未设置 | 绝对路径、`~` 或 `~/...` | `custom` 时必填；旧配置只设置它时自动解析为 `custom` |
 | `cliPath` | 自动发现 | 可执行路径 | 显式指定 Mnemon CLI |
 | `store` | 未设置 | `[A-Za-z0-9][A-Za-z0-9_-]*` | 用于旧 Store 的兼容发现/首选提示；语义操作由 Memory Space 路由 |
@@ -177,6 +179,20 @@ Web 工作台查看：resolve(workspaceRegistry.get(selectedWorkspaceId).path, "
 每个 DSH 工作区拥有独立的三层记忆根。对话 Agent、模型工具、命令和生命周期按当前会话的 cwd 路由；Web 发起的独立任务 Agent 则显式使用工作台选择的 Host 已登记工作区，不能提交任意路径。因此，没有选中主会话时，AI 元信息、Agent 查询、记忆沉淀和档案归档仍会写入左上角选定的工作区。
 
 Headless 没有 `workspaceRegistry`；其新 session 的 cwd 就是启动 `dsh --profile headless ...` 的目录，因此 `workspace` 直接解析为 `<启动命令 cwd>/.mnemon`。
+
+### 全局 USER.md 与工作区项目记忆同时生效
+
+若要跨仓库共享用户级协作要求，同时隔离项目事实，可在设置中同时选择“工作区”与“全局用户档案”，或配置：
+
+```yaml
+mnemon:
+  storageScope: workspace
+  runtimeUserScope: global
+```
+
+此后每回合会把全局根（设置 `MNEMON_DATA_DIR` 时使用该目录，否则使用 `~/.mnemon`）的 `USER.md` 与 `<workspace>/.mnemon` 的 `MEMORY.md` 一起投影。`target=user` 变更和本地 USER.md 压缩只写全局事实源；`target=memory`、Documents、Memory Spaces 与 Provider state 仍留在工作区。全局 MEMORY.md 和工作区 USER.md 条目会完整保留在磁盘，但在该模式下不进入投影。
+
+切换设置不会复制、合并或删除条目；改回 `runtimeUserScope: storage` 后，原工作区 USER.md 会重新可见。Mnemon Pack 仍表示一个所选存储根，因此工作区 Pack 不会暗中带入独立的全局 USER.md；重要的全局档案需要单独备份全局根。
 
 ### `custom`
 

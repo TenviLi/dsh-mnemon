@@ -51,7 +51,7 @@ follow an exact cold reference when full text is required
     +-- memory-providers.json     # 第三方连接控制面，0600，不进入 Mnemon Pack
 ```
 
-`storageScope` 决定整个根，而不只是 Mnemon 数据库。`workspace` 范围会为每个已登记 DSH 工作区解析独立的 `<workspace>/.mnemon`；Web 查看目标与当前会话执行目标彼此独立，只有后者会驱动 Agent、工具和生命周期。`state/memory-providers.json` 保存第三方 endpoint、目标 URI、身份和可选 API Key；文件权限为 `0600`，Host 返回 WebUI 时只暴露“是否已配置”，不回传密钥。
+`storageScope` 决定整个根，而不只是 Mnemon 数据库。`workspace` 范围会为每个已登记 DSH 工作区解析独立的 `<workspace>/.mnemon`。显式启用的 `runtimeUserScope=global` 是唯一的分根例外：Runtime 从全局根读取 USER.md，MEMORY.md 与其他所有组件仍留在所选根。Web 查看目标与当前会话执行目标彼此独立，只有后者会驱动 Agent、工具和生命周期。`state/memory-providers.json` 保存第三方 endpoint、目标 URI、身份和可选 API Key；文件权限为 `0600`，Host 返回 WebUI 时只暴露“是否已配置”，不回传密钥。
 
 ## Runtime Memory
 
@@ -66,7 +66,7 @@ follow an exact cold reference when full text is required
 
 ### 事实源和投影
 
-`runtime/memories.json` 是唯一事实源。每条记录包含：
+在单个根内，`runtime/memories.json` 是唯一事实源。启用 `runtimeUserScope=global` 后，有效快照只组合全局事实源中的 `target=user` 条目与所选事实源中的 `target=memory` 条目。两个 JSON 文件和两组 Markdown 投影始终保持完整且不改写；过滤只发生在有效 Runtime controller。每条记录包含：
 
 ```text
 content

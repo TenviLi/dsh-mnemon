@@ -119,6 +119,22 @@ describe('Mnemon Pack', () => {
     expect(new MnemonPackManager(configuredRunner, configuredTarget).inspectPack(exported.base64).manifest.scope).toBe('runtime')
   })
 
+  it('keeps an overlaid global USER.md outside a workspace Runtime Pack', async () => {
+    const globalRoot = temporary('pack-global-user')
+    const workspaceRoot = temporary('pack-workspace-runtime')
+    const workspace = runner(workspaceRoot)
+    const runtime = new RuntimeMemoryController(workspace.runner, now, undefined, undefined, { effectiveDataDir: () => globalRoot })
+    await runtime.mutate({ action: 'add', target: 'user', content: 'Private global profile fixture.' })
+    await runtime.mutate({ action: 'add', target: 'memory', content: 'Workspace project fixture.' })
+
+    const exported = await new MnemonPackManager(workspace.runner, workspace.config, undefined, now).exportPack('runtime')
+    const files = unzipSync(Buffer.from(exported.base64, 'base64'))
+    const source = JSON.parse(Buffer.from(files['payload/runtime/memories.json']!).toString('utf8')) as { entries: Array<{ content: string }> }
+
+    expect(source.entries.map(entry => entry.content)).toEqual(['Workspace project fixture.'])
+    expect(Buffer.from(exported.base64, 'base64').includes(Buffer.from('Private global profile fixture.'))).toBe(false)
+  })
+
   it('keeps remote provider connections and credentials outside Mnemon Packs', async () => {
     const source = await fixture('pack-provider-boundary', 22)
     const registry = new MemoryBodyRegistry(source.runner, true, now)

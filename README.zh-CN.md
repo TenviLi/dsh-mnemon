@@ -170,6 +170,8 @@ dsh plugin --profile headless add "link:/absolute/path/to/dsh-mnemon"
 | `workspace` | 使用 `<workspace>/.mnemon`；支持工作区跟随的本地 Provider 会随有效工作区切换 |
 | `custom` | 显式路径的全局语义，适合团队约定或隔离环境 |
 
+同时设置 `storageScope: workspace` 与 `runtimeUserScope: global`，即可让全局 USER.md 用户档案和工作区 MEMORY.md 同时进入投影。用户档案写入保持全局，项目 Runtime、Documents、Memory Spaces 与 Provider state 继续隔离；切换时不会复制或删除已有条目。
+
 远程 Provider 的 workspace、user、bank、project、container 与 URI 保留自己的命名空间；切换 DSH 工作区不会暗中改写。工作区模式下，工作台可以查看一个选定工作区，而当前会话继续使用自己的 cwd；从工作台启动的独立任务 Agent 使用查看工作区，即使没有选中主会话也能正确执行。
 
 ## Web、对话与 Headless 使用同一套系统
