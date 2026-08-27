@@ -152,6 +152,12 @@ export interface HostAgent {
   session: {
     header?: { origin?: 'subagent'; parentSession?: string; delegationDepth?: number; cwd?: string; agentPreset?: string }
     events: readonly HostSessionEvent[]
+    /**
+     * Model-visible event sequences, in order. Optional because not every host
+     * publishes a surface projection; when absent, callers fall back to
+     * session-scoped state.
+     */
+    surface?: { readonly nodes: readonly number[] }
   }
   ctx: HostAgentContext
   followup(message: HostUserMessage): void

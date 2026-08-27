@@ -208,6 +208,48 @@ function fixture(config = resolveConfig({ cliPath: '/fake/mnemon' }), options: {
 afterEach(() => vi.useRealTimers())
 
 describe('Mnemon DSH lifecycle integration', () => {
+
+  it('re-composes the guided reminder after a rewind drops it from the surface', async () => {
+    const value = fixture()
+    // The real host publishes a model-visible projection; the base stub does not.
+    const surface: { nodes: number[] } = { nodes: [] }
+    ;(value.agent.session as { surface?: { nodes: readonly number[] } }).surface = surface
+
+    // Commit an injected message to the durable log and the surface, the way the
+    // host does once a step is admitted.
+    const commit = (message: HostUserMessage): void => {
+      const seq = value.events.length
+      value.events.push({ type: 'user/message', seq, data: { source: message.source, turn: 1 } })
+      surface.nodes.push(seq)
+    }
+
+    const first = await value.preStep([userMessage()], 1)
+    expect(first.kind).toBe('enter')
+    const reminder = first.kind === 'enter' ? first.messages.at(-1) : undefined
+    expect(reminder?.source).toMatchObject({ kind: 'plugin', plugin: 'dsh-mnemon' })
+    commit(reminder as HostUserMessage)
+
+    // Still visible: a later first step must not duplicate it.
+    const second = await value.preStep([userMessage()], 2)
+    expect(second.kind === 'enter' && second.messages).toHaveLength(1)
+
+    // Rewind replaces the surface and drops the reminder. The append-only event
+    // log still contains it, which is why presence cannot be read from there.
+    surface.nodes.length = 0
+
+    const third = await value.preStep([userMessage()], 3)
+    expect(third.kind).toBe('enter')
+    const reissued = third.kind === 'enter' ? third.messages.at(-1) : undefined
+    expect(reissued?.source).toMatchObject({ kind: 'plugin', plugin: 'dsh-mnemon' })
+  })
+
+  it('falls back to session-scoped state when the host publishes no surface', async () => {
+    const value = fixture()
+    const first = await value.preStep([userMessage()], 1)
+    expect(first.kind === 'enter' && first.messages).toHaveLength(2)
+    const second = await value.preStep([userMessage()], 2)
+    expect(second.kind === 'enter' && second.messages).toHaveLength(1)
+  })
   it('pins one immutable Wake across every model step and releases it at the turn boundary', async () => {
     const value = fixture()
     const context = value.agentContexts[0]
