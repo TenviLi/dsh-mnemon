@@ -109,6 +109,10 @@ mnemon:
 
 默认值保持已发布版本的 10240 / 4096 / 8192 行为。保存后会构建新的运行图，后续 Runtime 读取、写入、容量维护与 Mnemon Pack 校验统一使用这组上限。已有条目与 `memories.json` 格式不变。若把字节上限降低到当前用量以下，不会删除数据；Runtime 视图会显示超容状态，后续写入需要先压缩或重新提高上限。回滚只需删除该配置块或恢复默认值。
 
+下方隔离 DSH Web 对比图先展示默认 USER 4.0 KB / MEMORY 10.0 KB，再展示已生效的 USER 10.0 KB / MEMORY 20.0 KB 配置。两张截图均使用空的临时根，不含私有记忆。
+
+[![Runtime Memory 默认容量与配置后容量对比](../assets/screenshots/runtime-memory-capacity-configuration.png)](../assets/screenshots/runtime-memory-capacity-configuration.png)
+
 ### Mnemon Native 嵌入
 
 从 Finder 或 Dock 启动的 macOS 应用通常不会继承交互式 shell 启动文件。在 Mnemon Native 中开启“由 DSH 管理嵌入配置”，即可让保存值成为每个 Mnemon 子进程的权威配置：

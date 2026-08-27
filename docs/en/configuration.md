@@ -109,6 +109,10 @@ mnemon:
 
 The defaults preserve the released 10240 / 4096 / 8192 behavior. Saving the block builds a new runtime generation, so subsequent Runtime reads, writes, capacity maintenance, and Mnemon Pack validation use the same limits. Existing entries and the `memories.json` format are unchanged. Lowering a byte limit below current usage does not delete data; the Runtime view reports the over-capacity state and further writes require compaction or a higher limit. Rollback only requires removing the block or restoring the defaults.
 
+The isolated DSH Web comparison below shows the default USER 4.0 KB / MEMORY 10.0 KB limits first, followed by the active USER 10.0 KB / MEMORY 20.0 KB configuration. Both captures use an empty temporary root and contain no private memory.
+
+[![Runtime Memory default and configured capacity comparison](../assets/screenshots/runtime-memory-capacity-configuration.png)](../assets/screenshots/runtime-memory-capacity-configuration.png)
+
 ### Mnemon Native embeddings
 
 Finder- and Dock-launched macOS applications do not normally inherit interactive shell startup files. Enable **Manage embedding settings in DSH** under Mnemon Native to make the saved values authoritative for every Mnemon child process instead:
