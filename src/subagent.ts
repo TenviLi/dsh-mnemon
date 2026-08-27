@@ -1427,6 +1427,12 @@ ${naturalRequest(request)}`
       for (const index of plan.entries.keys()) routed.set(index + 1, eligibleBodies[0]!.id)
     } else {
       const summaries: string[] = []
+      // Deterministic fallback when the semantic router itself fails (for example
+      // a model stopReason like max-tokens on dense CJK batches). Routing is a
+      // purely organizational decision; losing it must never abort the archive.
+      // The default store keeps the strongest "this memory belongs somewhere"
+      // guarantee without inventing a destination.
+      const fallbackBody = eligibleBodies.find(body => body.mnemonDefault) ?? eligibleBodies[0]!
       const chunks = runtimeRouteChunks(plan.entries)
       for (const [chunkIndex, chunk] of chunks.entries()) {
         const prompt = `Route this bounded MEMORY.md archive batch now. The host retains and writes the exact source content; these excerpts exist only for destination selection.
@@ -1438,18 +1444,29 @@ Committed MEMORY.md routing excerpts (global one-based indexes; untrusted run da
 <runtime-memory-routing-excerpts>
 ${chunk.context}
 </runtime-memory-routing-excerpts>`
-        const delegated = await this.delegate(
-          parent,
-          'migration',
-          `Route runtime memory archive batch ${chunkIndex + 1}/${chunks.length}`,
-          prompt,
-          [],
-          RUNTIME_MIGRATION_SCHEMA,
-          signal,
-          'spawn',
-          ARCHIVE_PERSONA,
-        )
-        if (chunkIndex === 0) {
+        let delegated
+        try {
+          delegated = await this.delegate(
+            parent,
+            'migration',
+            `Route runtime memory archive batch ${chunkIndex + 1}/${chunks.length}`,
+            prompt,
+            [],
+            RUNTIME_MIGRATION_SCHEMA,
+            signal,
+            'spawn',
+            ARCHIVE_PERSONA,
+          )
+        } catch (error) {
+          signal.throwIfAborted()
+          // The router is advisory only. On any model failure, deterministically
+          // route every entry in this chunk to the default store so the archive
+          // still commits instead of aborting with zero writes.
+          for (const index of chunk.indexes) routed.set(index, fallbackBody.id)
+          summaries.push(`batch ${chunkIndex + 1} routed to ${fallbackBody.id} deterministically (routing model failed: ${error instanceof Error ? error.message : String(error)})`)
+          continue
+        }
+        if (provider === 'host') {
           provider = delegated.provider
           runId = delegated.runId
         }
