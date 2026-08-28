@@ -166,12 +166,15 @@ export interface MnemonEmbeddingConfig {
   enabled?: boolean
   endpoint?: string
   model?: string
+  /** Optional Bearer token forwarded as MNEMON_EMBED_API_KEY for OpenAI-compatible endpoints. */
+  apiKey?: string
 }
 
 export interface ResolvedMnemonEmbeddingConfig {
   enabled: boolean
   endpoint: string
   model: string
+  apiKey: string
 }
 
 export interface TaskAgentModelConfig {

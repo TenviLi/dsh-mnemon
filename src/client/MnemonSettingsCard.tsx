@@ -34,7 +34,7 @@ export interface MnemonSettingsCardProps {
 }
 
 type CoreField = 'displayMode' | 'storageScope' | 'runtimeUserScope' | 'dataDir'
-type EmbeddingField = 'embeddingEnabled' | 'embeddingEndpoint' | 'embeddingModel'
+type EmbeddingField = 'embeddingEnabled' | 'embeddingEndpoint' | 'embeddingModel' | 'embeddingApiKey'
 type TaskAgentField = 'taskAgentModelMode' | 'taskAgentProvider' | 'taskAgentModel'
 type InteractionField = 'turnBar' | 'saveAction'
 type TopologyField = `memoryTopology.${string}`
@@ -48,13 +48,14 @@ interface Draft extends Record<InteractionField, boolean> {
   embeddingEnabled: boolean
   embeddingEndpoint: string
   embeddingModel: string
+  embeddingApiKey: string
   taskAgentModelMode: 'inherit' | 'fixed'
   taskAgentProvider: string
   taskAgentModel: string
 }
 
 const CORE_FIELDS: CoreField[] = ['displayMode', 'storageScope', 'runtimeUserScope', 'dataDir']
-const EMBEDDING_FIELDS: EmbeddingField[] = ['embeddingEnabled', 'embeddingEndpoint', 'embeddingModel']
+const EMBEDDING_FIELDS: EmbeddingField[] = ['embeddingEnabled', 'embeddingEndpoint', 'embeddingModel', 'embeddingApiKey']
 const INTERACTION_FIELDS: InteractionField[] = ['turnBar', 'saveAction']
 const TASK_AGENT_FIELDS: TaskAgentField[] = ['taskAgentModelMode', 'taskAgentProvider', 'taskAgentModel']
 function record(value: unknown): Record<string, unknown> {
@@ -79,6 +80,7 @@ function coreDraft(value: Config | undefined): Pick<Draft, CoreField | Embedding
     embeddingEnabled: resolved.embedding?.enabled === true,
     embeddingEndpoint: resolved.embedding?.endpoint?.trim() || DEFAULT_EMBEDDING_ENDPOINT,
     embeddingModel: resolved.embedding?.model?.trim() || DEFAULT_EMBEDDING_MODEL,
+    embeddingApiKey: resolved.embedding?.apiKey?.trim() ?? '',
     taskAgentModelMode: resolved.taskAgentModel?.mode === 'fixed' ? 'fixed' : 'inherit',
     taskAgentProvider: resolved.taskAgentModel?.provider?.trim() ?? '',
     taskAgentModel: resolved.taskAgentModel?.model?.trim() ?? '',
@@ -101,6 +103,11 @@ function validEmbeddingEndpoint(value: string): boolean {
 function validEmbeddingModel(value: string): boolean {
   const model = value.trim()
   return model.length > 0 && model.length <= 200 && !/[\u0000-\u001f\u007f]/u.test(model)
+}
+
+function validEmbeddingApiKey(value: string): boolean {
+  const key = value.trim()
+  return key.length <= 2048 && !/[\u0000-\u001f\u007f]/u.test(key)
 }
 
 function interactionDraft(value: InteractionConfig | undefined): Pick<Draft, InteractionField> {
@@ -141,6 +148,7 @@ function validation(t: MnemonTranslate, draft: Draft): string | null {
   }
   if (draft.embeddingEnabled && !validEmbeddingEndpoint(draft.embeddingEndpoint)) return t('config.embeddingEndpointInvalid')
   if (draft.embeddingEnabled && !validEmbeddingModel(draft.embeddingModel)) return t('config.embeddingModelInvalid')
+  if (draft.embeddingEnabled && !validEmbeddingApiKey(draft.embeddingApiKey)) return t('config.embeddingApiKeyInvalid')
   if (draft.taskAgentModelMode === 'fixed' && (draft.taskAgentProvider.trim() === '' || draft.taskAgentModel.trim() === '')) return t('config.taskAgentRouteRequired')
   return null
 }
@@ -357,6 +365,7 @@ export function MnemonSettingsCard({ scope, interactionScope: suppliedInteractio
       if (embeddingChanged) {
         const validEndpoint = validEmbeddingEndpoint(draft.embeddingEndpoint)
         const validModel = validEmbeddingModel(draft.embeddingModel)
+        const validApiKey = validEmbeddingApiKey(draft.embeddingApiKey)
         coreOps.push({
           op: 'set',
           path: ['embedding'],
@@ -365,11 +374,13 @@ export function MnemonSettingsCard({ scope, interactionScope: suppliedInteractio
                 enabled: true,
                 endpoint: draft.embeddingEndpoint.trim().replace(/\/+$/u, ''),
                 model: draft.embeddingModel.trim(),
+                apiKey: draft.embeddingApiKey.trim(),
               }
             : {
                 enabled: false,
                 ...(validEndpoint ? { endpoint: draft.embeddingEndpoint.trim().replace(/\/+$/u, '') } : {}),
                 ...(validModel ? { model: draft.embeddingModel.trim() } : {}),
+                ...(validApiKey ? { apiKey: draft.embeddingApiKey.trim() } : {}),
               },
         })
       }
@@ -645,6 +656,22 @@ function EmbeddingSettingsSection(props: {
           autoCorrect="off"
           placeholder={DEFAULT_EMBEDDING_MODEL}
           onChange={event => props.onEdit('embeddingModel', event.target.value)}
+        />
+      </label>
+      <label>
+        {props.t('config.embeddingApiKey')}
+        <input
+          type="password"
+          aria-label={props.t('config.embeddingApiKey')}
+          aria-invalid={props.draft.embeddingEnabled && !validEmbeddingApiKey(props.draft.embeddingApiKey)}
+          value={props.draft.embeddingApiKey}
+          disabled={props.disabled || !props.draft.embeddingEnabled}
+          autoComplete="off"
+          spellCheck={false}
+          autoCapitalize="none"
+          autoCorrect="off"
+          placeholder="sk-…"
+          onChange={event => props.onEdit('embeddingApiKey', event.target.value)}
         />
       </label>
     </div>

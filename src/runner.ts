@@ -139,7 +139,7 @@ export interface MnemonRunner {
   effectiveStore(): string
 }
 
-const EMBEDDING_ENVIRONMENT_KEYS = new Set(['MNEMON_EMBED_ENDPOINT', 'MNEMON_EMBED_MODEL'])
+const EMBEDDING_ENVIRONMENT_KEYS = new Set(['MNEMON_EMBED_ENDPOINT', 'MNEMON_EMBED_MODEL', 'MNEMON_EMBED_API_KEY'])
 
 /** Preserve the Host environment while making saved embedding overrides authoritative. */
 function processEnvironment(config: ResolvedConfig): NodeJS.ProcessEnv | undefined {
@@ -149,6 +149,7 @@ function processEnvironment(config: ResolvedConfig): NodeJS.ProcessEnv | undefin
     ...inherited,
     MNEMON_EMBED_ENDPOINT: config.embedding.endpoint,
     MNEMON_EMBED_MODEL: config.embedding.model,
+    MNEMON_EMBED_API_KEY: config.embedding.apiKey,
   }
 }
 

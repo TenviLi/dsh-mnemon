@@ -138,18 +138,22 @@ describe('Mnemon config and resolution', () => {
 
   it('normalizes and validates DSH-managed Mnemon embedding settings', () => {
     expect(resolveConfig({
-      embedding: { enabled: true, endpoint: ' https://ollama.example.test/prefix/// ', model: ' qwen3-embedding:0.6b ' },
+      embedding: { enabled: true, endpoint: ' https://ollama.example.test/prefix/// ', model: ' qwen3-embedding:0.6b ', apiKey: '  sk-secret  ' },
     }).embedding).toEqual({
       enabled: true,
       endpoint: 'https://ollama.example.test/prefix',
       model: 'qwen3-embedding:0.6b',
+      apiKey: 'sk-secret',
     })
+    expect(resolveConfig({}).embedding).toMatchObject({ enabled: false, endpoint: 'http://localhost:11434', model: 'nomic-embed-text', apiKey: '' })
     expect(() => resolveConfig({ embedding: { enabled: true, endpoint: 'ftp://ollama.example.test' } })).toThrow('HTTP or HTTPS')
     expect(() => resolveConfig({ embedding: { enabled: true, endpoint: 'http://user:secret@localhost:11434' } })).toThrow('without credentials')
     expect(() => resolveConfig({ embedding: { enabled: true, endpoint: 'http://localhost:11434?tenant=one' } })).toThrow('without credentials')
     expect(() => resolveConfig({ embedding: { enabled: true, endpoint: 'http://localhost:11434?' } })).toThrow('without credentials')
     expect(() => resolveConfig({ embedding: { enabled: true, endpoint: 'http://localhost:11434#' } })).toThrow('without credentials')
     expect(() => resolveConfig({ embedding: { enabled: true, model: 'bad\nmodel' } })).toThrow('control characters')
+    expect(() => resolveConfig({ embedding: { enabled: true, apiKey: 'bad\nkey' } })).toThrow('without control characters')
+    expect(() => resolveConfig({ embedding: { enabled: true, apiKey: 'k'.repeat(2049) } })).toThrow('0..2048')
   })
 
   it('resolves a bounded automatic persistence strategy without changing its provider connections', () => {
@@ -251,6 +255,7 @@ describe('Mnemon config and resolution', () => {
   it('injects saved embedding overrides into every Mnemon process without changing the Host environment', async () => {
     vi.stubEnv('MNEMON_EMBED_ENDPOINT', 'http://launchctl.example:11434')
     vi.stubEnv('MNEMON_EMBED_MODEL', 'launchctl-model')
+    vi.stubEnv('MNEMON_EMBED_API_KEY', 'host-secret')
     vi.stubEnv('MNEMON_EMBED_DIMENSIONS', '256')
     const processRunner = vi.fn<ProcessRunner>(async () => ({ stdout: '{}', stderr: '', exitCode: 0 }))
     const runner = createRunner(resolveConfig({
@@ -264,11 +269,28 @@ describe('Mnemon config and resolution', () => {
       env: expect.objectContaining({
         MNEMON_EMBED_ENDPOINT: 'http://127.0.0.1:11434',
         MNEMON_EMBED_MODEL: 'qwen3-embedding:0.6b',
+        MNEMON_EMBED_API_KEY: '',
         MNEMON_EMBED_DIMENSIONS: '256',
       }),
     }))
     expect(process.env.MNEMON_EMBED_ENDPOINT).toBe('http://launchctl.example:11434')
     expect(process.env.MNEMON_EMBED_MODEL).toBe('launchctl-model')
+    expect(process.env.MNEMON_EMBED_API_KEY).toBe('host-secret')
+  })
+
+  it('forwards a saved embedding API key over the inherited Host environment', async () => {
+    vi.stubEnv('MNEMON_EMBED_API_KEY', 'host-secret')
+    const processRunner = vi.fn<ProcessRunner>(async () => ({ stdout: '{}', stderr: '', exitCode: 0 }))
+    const runner = createRunner(resolveConfig({
+      cliPath: '/fake/mnemon',
+      embedding: { enabled: true, endpoint: 'http://127.0.0.1:18000/v1', model: 'bge-m3-mlx-8bit', apiKey: ' sk-managed ' },
+    }), processRunner)
+
+    await runner.runText(['status'])
+
+    expect(processRunner).toHaveBeenCalledWith('/fake/mnemon', ['status'], expect.objectContaining({
+      env: expect.objectContaining({ MNEMON_EMBED_API_KEY: 'sk-managed' }),
+    }))
   })
 
   it('leaves child environment inheritance untouched when the DSH override is disabled', async () => {

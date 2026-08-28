@@ -75,7 +75,7 @@ mnemon:
 | `runtimeMemory.memoryLimitBytes` | `10240` | 1–1048576 bytes | UTF-8 byte limit for the complete `MEMORY.md` projection |
 | `runtimeMemory.userLimitBytes` | `4096` | 1–1048576 bytes | UTF-8 byte limit for the complete `USER.md` projection |
 | `runtimeMemory.maintenanceMaxTokens` | `8192` | 1–1000000 tokens | Completion-token budget for Runtime migration and compaction workers; does not change Document archive or metadata-maintenance budgets |
-| `embedding` | `{ enabled: false, endpoint: http://localhost:11434, model: nomic-embed-text }` | enabled + HTTP(S) endpoint + model | When enabled, the Host injects the saved endpoint and model into every Mnemon CLI child process; when disabled, existing Host environment and Mnemon defaults remain untouched |
+| `embedding` | `{ enabled: false, endpoint: http://localhost:11434, model: nomic-embed-text, apiKey: '' }` | enabled + HTTP(S) endpoint + model + optional apiKey | When enabled, the Host injects the saved endpoint, model, and API key into every Mnemon CLI child process; an endpoint ending in `/v1` makes Mnemon use the OpenAI-compatible protocol with the API key as a Bearer token; when disabled, existing Host environment and Mnemon defaults remain untouched |
 | `memoryTopology.layers.<id>.enabled` | `true` for the three defaults | boolean | Whether the Layer participates; disabling never deletes or migrates existing data |
 | `recallQuality.policy` | `strict-v1` | registered policy id | Deterministic policy applied before recall content is serialized to an Agent or client |
 | `recallQuality.lowScoreThreshold` | `0.25` | 0–1, below high threshold | Normalized scores below this boundary are removed by `strict-v1` |
@@ -127,9 +127,20 @@ mnemon:
     model: qwen3-embedding:0.6b
 ```
 
-The Host copies its normal process environment and then overwrites `MNEMON_EMBED_ENDPOINT` and `MNEMON_EMBED_MODEL` for the child only. It does not modify the desktop session, `launchctl`, shell files, or Mnemon's persisted data. Saving swaps to a new runtime graph, so later calls use the new values without restarting DSH. With `enabled: false` or an omitted `embedding` block, dsh-mnemon supplies no override: inherited variables and Mnemon's built-in defaults keep their previous behavior. `MNEMON_EMBED_DIMENSIONS` remains an advanced inherited environment setting.
+For an OpenAI-compatible server, point the endpoint at its `/v1` base URL; Mnemon automatically switches from the Ollama protocol to the OpenAI protocol (`/v1/embeddings`). Fill in `apiKey` for services that require authentication; it is sent as a Bearer token:
 
-The endpoint must be an absolute HTTP(S) URL without credentials, query parameters, or a fragment. Mnemon sends memory and query text to this service. A remote plain-HTTP endpoint exposes that text in transit; use a trusted loopback endpoint or HTTPS. **Test status** runs the effective `mnemon embed --status` command for the current default Store and reports Ollama reachability, model, and embedding coverage without backfilling or changing memories. Save pending edits before testing so the check cannot claim an unsaved value is active.
+```yaml
+mnemon:
+  embedding:
+    enabled: true
+    endpoint: http://127.0.0.1:18000/v1
+    model: bge-m3-mlx-8bit
+    apiKey: sk-...
+```
+
+The Host copies its normal process environment and then overwrites `MNEMON_EMBED_ENDPOINT`, `MNEMON_EMBED_MODEL`, and `MNEMON_EMBED_API_KEY` for the child only. It does not modify the desktop session, `launchctl`, shell files, or Mnemon's persisted data. Saving swaps to a new runtime graph, so later calls use the new values without restarting DSH. With `enabled: false` or an omitted `embedding` block, dsh-mnemon supplies no override: inherited variables and Mnemon's built-in defaults keep their previous behavior. `MNEMON_EMBED_DIMENSIONS` and `MNEMON_EMBED_PROTOCOL` remain advanced inherited environment settings.
+
+The endpoint must be an absolute HTTP(S) URL without credentials, query parameters, or a fragment. Mnemon sends memory and query text to this service; the API key is stored in the DSH settings file like other settings, and a remote plain-HTTP endpoint exposes that text in transit, so use a trusted loopback endpoint or HTTPS. **Test status** runs the effective `mnemon embed --status` command for the current default Store and reports embedding-server reachability, model, and embedding coverage without backfilling or changing memories. Save pending edits before testing so the check cannot claim an unsaved value is active.
 
 ### Memory Layer switches
 
