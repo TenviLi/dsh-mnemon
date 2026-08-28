@@ -186,7 +186,7 @@ describe('Mnemon config and resolution', () => {
       .toThrow('at least one allowed provider')
   })
 
-  it('requires an explicit trusted-host grant for remote management', () => {
+  it('retains the rc.2 management authority setting for branch-free rollback compatibility', () => {
     expect(resolveConfig({ remoteAccess: 'trusted-host' }).remoteAccess).toBe('trusted-host')
   })
 

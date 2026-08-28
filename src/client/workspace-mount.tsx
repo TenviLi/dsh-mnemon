@@ -38,7 +38,6 @@ function MnemonPanel({ ctx, settings, t, onClose }: MnemonPanelProps): JSX.Eleme
     ? undefined
     : workspaces.items.find(workspace => normalizePath(workspace.path) === normalizePath(currentCwd))
   const fallbackWorkspace = effectiveWorkspace
-    ?? workspaces.items.find(workspace => String(workspace.workspaceId) === String(workspaces.recentWorkspaceId))
     ?? workspaces.items[0]
   const selectedExists = selectedWorkspaceId !== undefined && workspaces.items.some(workspace => String(workspace.workspaceId) === selectedWorkspaceId)
   const resolvedSelectedId = selectedExists ? selectedWorkspaceId : fallbackWorkspace === undefined ? undefined : String(fallbackWorkspace.workspaceId)

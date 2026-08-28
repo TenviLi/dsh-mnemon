@@ -4,7 +4,7 @@ import { createSettingsHandler, registerSettingsRpc } from '../src/settings.ts'
 import { MNEMON_SETTINGS_CHANNEL } from '../src/shared/contracts.ts'
 
 describe('Mnemon settings bridge', () => {
-  it('keeps settings local by default and supports an explicit trusted Host', () => {
+  it('supplies the rc.2 authority object accepted and ignored by the alpha API', () => {
     const settings = {} as HostSettingsService
     const handle = vi.fn()
     const connection = { rpc: { handle } } as unknown as HostConnectionHandle
@@ -115,7 +115,7 @@ describe('Mnemon settings bridge', () => {
     ], undefined)
   })
 
-  it('does not let a remote settings client promote its own transport authority', async () => {
+  it('keeps the startup-only rc.2 authority setting immutable from the Web bridge', async () => {
     const settings = {
       writable: true,
       register: vi.fn(),

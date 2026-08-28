@@ -83,7 +83,7 @@ function mountBuildinMemoryView(ctx: MnemonClientContext, settings: MnemonSettin
     order: 30,
     label: () => translate('tab.label'),
     locale: namespace,
-    inject: (): { connection: ClientConnectionHandle; settingsScope: MnemonSettingsScope<Config>; surface: 'buildin'; t: (key: MnemonKey, params?: Record<string, unknown>) => string; locale: 'zh' | 'en' } => ({
+    inject: (): { connection: ClientConnectionHandle; settingsScope: MnemonSettingsScope<Config>; surface: 'buildin'; t: (key: MnemonKey, params?: Record<string, unknown>) => string; locale: string } => ({
       connection: ctx.connection,
       settingsScope: settings,
       surface: 'buildin',
@@ -154,12 +154,12 @@ export function apply(rawContext: unknown): void {
     locale: namespace,
     inject: (): { scope: MnemonSettingsScope<Config>; interactionScope: MnemonSettingsScope<InteractionConfig>; connection: ClientConnectionHandle; sessionId?: string; workspaceId?: string; workspaceLabel?: string; t: (key: MnemonKey, params?: Record<string, unknown>) => string } => {
       const sessions = ctx.sessions?.list?.getSnapshot?.() ?? { current: undefined, byId: {} }
-      const workspaces = ctx.workspaces?.list?.getSnapshot?.() ?? { items: [], recentWorkspaceId: undefined }
+      const workspaces = ctx.workspaces?.list?.getSnapshot?.() ?? { items: [] }
       const sessionId = sessions.current
       const cwd = sessionId === undefined ? undefined : sessions.byId[sessionId]?.cwd
       const normalizePath = (value: string): string => value.replace(/[\\/]+$/u, '')
       const workspace = cwd === undefined
-        ? workspaces.items.find(candidate => String(candidate.workspaceId) === String(workspaces.recentWorkspaceId)) ?? workspaces.items[0]
+        ? workspaces.items[0]
         : workspaces.items.find(candidate => normalizePath(candidate.path) === normalizePath(cwd))
       return {
         scope: settings,

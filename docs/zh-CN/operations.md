@@ -60,7 +60,7 @@ DSH rc.8 首次说明的可选 SQLite 不兼容性在 DSH 0.1.1-rc.2 中仍然�
 - 相同 Document ID + 相同内容跳过，ID 冲突且内容不同则生成新 ID；
 - 相同 Memory Space ID + 相同数据库跳过，内容不同则生成新 ID。
 
-导入受 `writeEnabled` 控制，只读部署会拒绝。ZIP 包含私有记忆，应加密、限制访问并验证恢复。Provider 凭据保存在 `state/memory-providers.json`（`0600`），不会进入 ZIP。已保存的值只返回给 loopback 设置编辑器，绝不经 trusted-host 读通道返回；若要备份连接，需要按下述离线快照保护整个 `state/`。
+导入受 `writeEnabled` 控制，只读部署会拒绝。ZIP 包含私有记忆，应加密、限制访问并验证恢复。Provider 凭据保存在 `state/memory-providers.json`（`0600`），不会进入 ZIP。已保存的值只经认证后的管理通道返回，绝不进入普通脱敏读目录；若要备份连接，需要按下述离线快照保护整个 `state/`。
 
 ### 恢复演练
 
@@ -119,9 +119,10 @@ DSH rc.8 首次说明的可选 SQLite 不兼容性在 DSH 0.1.1-rc.2 中仍然�
 
 ### Web 与模型
 
-- 读 RPC 与仅含记忆体激活的控制通道始终为 `trusted-host`；更宽泛的写、设置与备份 RPC 默认仍为 `loopback`，只有 Host 本地配置显式设置 `remoteAccess: trusted-host` 才会提升。
-- trusted-host 读侧 Provider 目录始终脱敏；已保存凭据只会在管理通道通过已配置的权限检查后返回。
-- WebUI 依据 Host 返回的设置能力，不再根据传输是否 loopback 猜测权限；激活与只读的单卡健康刷新仍通过 trusted-host 通道可用，设置通道不可用时会显示明确诊断，而不是空白页。
+- DSH 0.1.1-rc.2 中，读与激活使用 `trusted-host`；写、设置和备份默认保持 `loopback`，只有 Host 本地 `remoteAccess: trusted-host` 才会将三者整体提升。
+- DSH 0.1.2-alpha.1 中，所有 RPC 与 stream 都要求同一个已认证浏览器会话；保留的 `remoteAccess` 不影响 transport。
+- 普通 Provider 目录始终脱敏；已保存凭据只会经当前版本对应的受保护管理通道返回。
+- WebUI 依据 Host 返回的可写 settings snapshot 判断产品能力，不再根据传输位置猜测权限；设置通道不可用时会显示明确诊断，而不是空白页。
 - WebUI 不直接读取 SQLite、启动进程、调用远程 Provider 或指定任意更新命令；Provider 网络访问只发生在 Host。
 - worker 使用 persona、工具白名单、经过 schema 校验的一次性结果工具与 `maxDepth: 1`。
 - 查询、候选、档案正文与历史记忆全部按不可信数据处理。
@@ -153,7 +154,8 @@ DSH rc.8 首次说明的可选 SQLite 不兼容性在 DSH 0.1.1-rc.2 中仍然�
 | ZIP 导出提示 WAL busy | 等待 Memory Space 写入完成并重试；不要绕过未 checkpoint WAL 检查 |
 | ZIP 导入 checksum / schema 失败 | 备份损坏或格式不兼容；保留当前根，不要手工解压覆盖 |
 | 更新按钮不出现 | 当前已是最新、远程检查失败，或安装来源是 link / 手工模式；按面板提示沿原方式更新 |
-| 远程页面能切换记忆体，但不能执行其他写操作 | 默认权限设计；仅在入口已有可靠认证时，本地设置 `remoteAccess: trusted-host`、配置 DSH `trustedHosts` 并重启 Host |
+| rc.2 远程页面能切换记忆体，但不能执行其他写操作 | 默认安全设计；仅在入口已有可靠认证时，本地设置 `remoteAccess: trusted-host`、配置 DSH `trustedHosts` 并重启 Host |
+| alpha 中 DSH 重启或 authority 改变后 Mnemon RPC 返回 401 | 打开 `dsh web` 输出的启动 URL，让一次性 token 建立新的、与 authority 绑定的浏览器 Cookie |
 
 ## 已知限制
 

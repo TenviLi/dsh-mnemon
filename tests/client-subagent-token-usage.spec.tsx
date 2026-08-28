@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import type { SessionId, SessionListState } from '@deepseek-ai/dsh-client-runtime/client'
 import type { SnapshotSelectorHook, StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
+import type { MnemonSessionListState } from '../src/client/dsh-compat.ts'
 import {
   createScopedUseSessions,
   mountSubagentTokenUsageOverride,
@@ -22,10 +22,10 @@ const child = {
   cacheWriteTokens: 4,
 }
 
-const PARENT = 'parent' as SessionId
-const CHILD = 'child' as SessionId
+const PARENT = 'parent'
+const CHILD = 'child'
 
-function sessions(): SessionListState {
+function sessions(): MnemonSessionListState {
   return {
     ids: [PARENT, CHILD],
     current: PARENT,
@@ -42,10 +42,10 @@ function sessions(): SessionListState {
         projectionValues: { tokenUsage: generic, mnemonSubagentTokenUsage: child },
       },
     },
-  } as unknown as SessionListState
+  } as MnemonSessionListState
 }
 
-function tokenUsage(state: SessionListState, id: SessionId): unknown {
+function tokenUsage(state: MnemonSessionListState, id: string): unknown {
   return (state.byId[id]?.projectionValues as Readonly<Record<string, unknown>> | undefined)?.tokenUsage
 }
 
@@ -74,7 +74,7 @@ describe('Mnemon subagent catalog token override', () => {
 
   it('preserves the selector hook contract while presenting child-local usage', () => {
     const state = sessions()
-    const base: SnapshotSelectorHook<SessionListState> = selector => selector(state)
+    const base: SnapshotSelectorHook<MnemonSessionListState> = selector => selector(state)
     const useSessions = createScopedUseSessions(base)
 
     expect(useSessions(value => tokenUsage(value, CHILD))).toEqual(child)
@@ -119,10 +119,10 @@ describe('Mnemon subagent catalog token override', () => {
     }), expect.any(Function))
 
     const state = sessions()
-    const useSessions: SnapshotSelectorHook<SessionListState> = selector => selector(state)
+    const useSessions: SnapshotSelectorHook<MnemonSessionListState> = selector => selector(state)
     const element = shadow!({ useSessions })
     expect(element.type).toBe(official)
-    expect((element.props as { useSessions: SnapshotSelectorHook<SessionListState> }).useSessions(
+    expect((element.props as { useSessions: SnapshotSelectorHook<MnemonSessionListState> }).useSessions(
       value => tokenUsage(value, CHILD),
     )).toEqual(child)
 

@@ -50,8 +50,9 @@ const MUTABLE_FIELDS = [
   'routingGuidance', 'lifecycleEnabled', 'recallMode', 'writebackMode', 'idleReviewMs',
   'displayMode', 'tabEnabled', 'writeEnabled', 'persistenceStrategy', 'taskAgentModel',
 ]
-// remoteAccess is intentionally absent: changing the transport authority
-// requires a local configuration edit and a Host restart.
+// remoteAccess is intentionally absent: on rc.2 changing the transport
+// authority requires a local configuration edit and a Host restart. On
+// 0.1.2-alpha.1 the setting is accepted only for rollback compatibility.
 
 /** Nested paths of the live in-conversation interaction toggles. */
 const INTERACTION_PATHS: string[][] = [

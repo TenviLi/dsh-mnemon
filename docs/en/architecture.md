@@ -194,7 +194,7 @@ whether two items are duplicates    process timeout/cancel
 how to summarize a Document         file lock + atomic rename
 whether a reusable artifact exists  UTF-8 capacity accounting
                                      revision conflict rejection
-                                     read/write RPC authority
+                                     RPC trust / authentication boundary
 ```
 
 Persona constraints must be distinguished from hard Host guarantees. For example, the MEMORY archival worker is instructed to cover every committed hot-memory item, but the Host can strictly validate only the structured action, revision, and byte budget; the Host does validate USER compaction source coverage item by item.
@@ -206,13 +206,13 @@ The WebUI does not start system processes or open SQLite directly:
 ```text
 browser component
   -> typed client wrapper
-  -> DSH RPC authority check
+  -> DSH transport trust / authentication
   -> Host validation
   -> controller / service / bounded worker
   -> local CLI or managed files
 ```
 
-Read channels and the activation-only Memory Space control require `trusted-host`; broader memory write, settings, and backup channels require `loopback` by default. The activation handler accepts only an exact body ID and Boolean state. Provider credential values travel only through the private management-authorized service catalog; the ordinary trusted-host catalog is redacted. Browser components derive local-write capability from the connection boundary and disable broader controls before transport. A local `remoteAccess=trusted-host` setting followed by a Host restart promotes all three privileged channels together for deployments protected by reliable authentication; DSH `trustedHosts` alone is not user authentication. When `writeEnabled=false`, every mutation handler rejects the request at the Host boundary.
+The same Mnemon build supports both DSH transport generations without detecting a runtime version. On 0.1.1-rc.2, read and activation channels use `trusted-host`, while write, settings, and backup remain `loopback` unless the startup-only `remoteAccess=trusted-host` compatibility setting promotes them together. On 0.1.2-alpha.1, DSH ignores the trailing authority argument and protects every channel with its launch-token-derived browser session. The activation handler still accepts only an exact body ID and Boolean state, and Provider credential values travel only through the private management catalog while the ordinary read catalog stays redacted. Browser components derive product writability from Host settings and disable mutation controls before transport. When `writeEnabled=false`, every mutation handler rejects the request at the Host boundary.
 
 ## Internationalization
 

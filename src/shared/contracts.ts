@@ -144,7 +144,7 @@ export interface Config {
   displayMode?: 'sidebar' | 'buildin'
   tabEnabled?: boolean
   writeEnabled?: boolean
-  /** Remote Web policy for privileged Mnemon RPC. This boundary is sampled at Host startup. */
+  /** DSH rc.2 management-channel authority; ignored by DSH 0.1.2-alpha.1. */
   remoteAccess?: 'read-only' | 'trusted-host'
   lifecycleEnabled?: boolean
   recallMode?: 'guided' | 'off'
@@ -234,6 +234,7 @@ export interface ResolvedConfig {
   displayMode: 'sidebar' | 'buildin'
   tabEnabled: boolean
   writeEnabled: boolean
+  /** DSH rc.2 management-channel authority; ignored by DSH 0.1.2-alpha.1. */
   remoteAccess: 'read-only' | 'trusted-host'
   lifecycleEnabled: boolean
   recallMode: 'guided' | 'off'

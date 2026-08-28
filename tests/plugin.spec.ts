@@ -100,6 +100,7 @@ describe('dsh-mnemon plugin composition', () => {
     expect(new Set(directDshDependencies.map(([, version]) => version))).toEqual(new Set(['0.1.1-rc.2']))
     expect(manifest.engines.node).toBe('>=20')
     expect(manifest.peerDependencies['@deepseek-ai/dsh-client-ui-primitives']).toContain('^0.1.1-rc.1')
+    expect(manifest.peerDependencies['@deepseek-ai/dsh-client-ui-primitives']).toContain('^0.1.2-alpha.1')
     expect(lockedDshVersions.length).toBeGreaterThan(100)
     expect(new Set(lockedDshVersions)).toEqual(new Set(['0.1.1-rc.1', '0.1.1-rc.2']))
   })
@@ -144,9 +145,9 @@ describe('dsh-mnemon plugin composition', () => {
   it('exports a DSH Web client with its ordering dependencies', () => {
     expect(manifest.dsh.client).toEqual({
       inject: [
-        '@deepseek-ai/dsh-client-runtime',
         '@deepseek-ai/dsh-client-connection',
         '@deepseek-ai/dsh-client-ui-conversation',
+        '@deepseek-ai/dsh-client-ui-renderer',
         '@deepseek-ai/dsh-client-ui-settings',
         '@deepseek-ai/dsh-client-locale',
       ],
@@ -190,8 +191,8 @@ describe('dsh-mnemon plugin composition', () => {
     expect(fixture.commands).toEqual([expect.objectContaining({ name: 'mnemon' })])
     expect(fixture.channels).toHaveLength(5)
     expect(fixture.channels).toEqual(expect.arrayContaining([
-      expect.arrayContaining(['/dsh-mnemon-activation', expect.anything(), { authority: 'trusted-host' }]),
-      expect.arrayContaining(['/dsh-mnemon-pack', expect.anything(), { authority: 'loopback' }]),
+      ['/dsh-mnemon-activation', expect.anything(), { authority: 'trusted-host' }],
+      ['/dsh-mnemon-pack', expect.anything(), { authority: 'loopback' }],
     ]))
     expect(fixture.registrations).toEqual([
       expect.arrayContaining(['mnemon', expect.anything(), expect.objectContaining({ applies: 'live' })]),
@@ -199,21 +200,27 @@ describe('dsh-mnemon plugin composition', () => {
     ])
   })
 
-  it('promotes every privileged Mnemon channel only with explicit remote access', () => {
+  it('preserves rc.2 channel authorities with one call shape accepted by the authenticated alpha API', () => {
     const fixture = context()
-    apply(fixture.ctx as never, {
-      cliPath: '/fake/mnemon',
-      dataDir: dataDir(),
-      remoteAccess: 'trusted-host',
-    })
+    apply(fixture.ctx as never, { cliPath: '/fake/mnemon', dataDir: dataDir() })
     for (const channel of ['/dsh-mnemon-write', '/dsh-mnemon-settings', '/dsh-mnemon-pack']) {
       expect(fixture.channels).toEqual(expect.arrayContaining([
-        expect.arrayContaining([channel, expect.anything(), { authority: 'trusted-host' }]),
+        [channel, expect.anything(), { authority: 'loopback' }],
       ]))
     }
     expect(fixture.channels).toEqual(expect.arrayContaining([
-      expect.arrayContaining(['/dsh-mnemon-read', expect.anything(), { authority: 'trusted-host' }]),
+      ['/dsh-mnemon-read', expect.anything(), { authority: 'trusted-host' }],
     ]))
+  })
+
+  it('promotes all rc.2 management channels only through the startup compatibility setting', () => {
+    const fixture = context()
+    apply(fixture.ctx as never, { cliPath: '/fake/mnemon', dataDir: dataDir(), remoteAccess: 'trusted-host' })
+    for (const channel of ['/dsh-mnemon-write', '/dsh-mnemon-settings', '/dsh-mnemon-pack']) {
+      expect(fixture.channels).toEqual(expect.arrayContaining([
+        [channel, expect.anything(), { authority: 'trusted-host' }],
+      ]))
+    }
   })
 
   it('keeps stable live surfaces while fencing every mutation in read-only mode', async () => {
@@ -226,8 +233,8 @@ describe('dsh-mnemon plugin composition', () => {
     expect(() => runtimeTool.execute({ action: 'add', target: 'memory', content: 'blocked' }, { signal: new AbortController().signal })).toThrow('read-only')
     expect(fixture.channels).toHaveLength(5)
     expect(fixture.channels).toEqual(expect.arrayContaining([
-      expect.arrayContaining(['/dsh-mnemon-activation', expect.anything(), { authority: 'trusted-host' }]),
-      expect.arrayContaining(['/dsh-mnemon-pack', expect.anything(), { authority: 'loopback' }]),
+      ['/dsh-mnemon-activation', expect.anything(), { authority: 'trusted-host' }],
+      ['/dsh-mnemon-pack', expect.anything(), { authority: 'loopback' }],
     ]))
     expect(fixture.contexts).toEqual([])
   })

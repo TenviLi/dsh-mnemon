@@ -490,7 +490,7 @@ describe('MnemonView', () => {
     expect(within(nativeStatus).getByText('项目记忆体: Mnemon Store 无法打开')).toBeTruthy()
   })
 
-  it('activates an additional memory space through the trusted-host route without crashing the live graph', async () => {
+  it('activates an additional memory space through the narrow control route without crashing the live graph', async () => {
     const { connection, call } = createConnection({ withInactiveBody: true })
     render(<MnemonView connection={connection} settingsScope={settingsScope} sessionId="session-1" />)
 
@@ -540,7 +540,7 @@ describe('MnemonView', () => {
     expect(call.mock.calls.some(([channel]) => channel === '/dsh-mnemon-write')).toBe(false)
   })
 
-  it('enables memory management controls on an explicitly authorized remote Host', async () => {
+  it('enables memory management controls from a writable authenticated Host snapshot', async () => {
     const { connection } = createConnection({ isLoopback: false, withInactiveBody: true })
     render(<MnemonView connection={connection} settingsScope={settingsScope} sessionId="session-1" surface="sidebar" />)
 

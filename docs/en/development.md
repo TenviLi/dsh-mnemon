@@ -4,13 +4,44 @@
 
 ## Environment
 
-The published plugin retains its Node.js 20 engine floor for older compatible DSH hosts. This source checkout's DSH 0.1.1-rc.2 verification toolchain requires Node.js `^22.19.0 || >=24.0.0`: rc.2 imports the Node Zstd API and uses `Promise.withResolvers`, so Node 20 cannot load a complete rc.2 profile. CI runs the full Linux chain on Node.js 22.19 and 24, plus the Windows chain on Node.js 24, all with pnpm 10.13.1. After the Node 24 build, CI switches to Node 20 and imports every Node-compatible published subpath as a plugin-runtime compatibility smoke. Verify DSH and Mnemon compatibility through the full validation chain whenever dependencies are upgraded.
+The published plugin retains its Node.js 20 engine floor for older compatible DSH hosts. The registry-backed development baseline remains DSH 0.1.1-rc.2, whose complete profiles require Node.js `^22.19.0 || >=24.0.0`. CI also checks the source-only DSH 0.1.2-alpha.1 tag on Node 24 by building Harness from source, linking its build-time packages, and running the complete Mnemon verification chain. The regular matrix runs Linux on Node.js 22.19 and 24 plus Windows on Node.js 24. After the Node 24 build, CI switches to Node 20 and imports every Node-compatible published subpath as a plugin-runtime compatibility smoke.
 
 Install dependencies:
 
 ```sh
 pnpm install
 ```
+
+## DSH 0.1.2-alpha.1 source verification
+
+The alpha is intentionally not published to npm. Keep the registry dependencies and lockfile on the latest published DSH baseline, then overlay only generated `node_modules` links from a built Harness checkout:
+
+```sh
+git clone https://github.com/deepseek-ai/deepseek-harness.git
+git -C deepseek-harness checkout dsh-v0.1.2-alpha.1
+pnpm --dir deepseek-harness install --frozen-lockfile
+pnpm --dir deepseek-harness run build:lib
+
+pnpm install --frozen-lockfile
+DSH_SOURCE_ROOT=/absolute/path/to/deepseek-harness pnpm run dsh:link-source
+pnpm run verify
+```
+
+The link command validates every package name and alpha version, records the existing direct registry links under generated `node_modules`, and only then replaces them. It does not edit `package.json` or `pnpm-lock.yaml`. Run `pnpm run dsh:restore-registry` afterward to restore exactly those recorded links; an ordinary up-to-date install preserves manually replaced links. The compatibility work covers the removed client runtime, controller/renderer-owned client services, extensible locale IDs, the Workspace snapshot change, and the branch-free dual-generation Host RPC registration.
+
+### Compatibility findings
+
+The [upstream alpha release](https://github.com/deepseek-ai/deepseek-harness/releases/tag/dsh-v0.1.2-alpha.1) covers far more than the plugin seam; the [full comparison](https://github.com/deepseek-ai/deepseek-harness/compare/dsh-v0.1.1-rc.2...dsh-v0.1.2-alpha.1) includes the Client, Host, SDK, profiles, persistence, UI, and generated references. The Mnemon-relevant findings are:
+
+- `@deepseek-ai/dsh-client-runtime` is removed. Session and Workspace state now belong to API controllers, observable contracts belong to `dsh-client-store`, and `ctx.slots` belongs to the UI renderer.
+- Chat-specific slot contracts, including `conversation.chat.turnTail`, moved out of the target-neutral conversation package. Mnemon now types its minimum selector boundary without importing the old owner.
+- The Workspace list no longer publishes `recentWorkspaceId`; Mnemon selects the current session's canonical cwd match, then the first available workspace.
+- Locale IDs are extensible by third-party language packs, so Mnemon passes unknown active locale IDs through for date formatting while its own dictionary still falls back through DSH locale resolution.
+- `HostConnectionRpc.handle()` no longer accepts per-method authority options. Every alpha RPC and stream requires the same launch-token-derived browser session. Mnemon nevertheless retains the rc.2 `remoteAccess` configuration and always passes rc.2's trailing authority object: rc.2 consumes it, while alpha's two-argument JavaScript implementation ignores it. This preserves both security models without version parsing, function-arity inspection, or a capability branch.
+- The legacy ApiProxy transport is removed in favor of Remote/gateway APIs. Mnemon's generic Connection channels remain supported; Headless progress moving to stderr does not affect its stdout result assertion.
+- DSH adds subagent model configuration and revises token accounting, but the official lineage row still consumes the generic complete-log projection. Mnemon therefore retains its child-local projection wrapper and verifies it against the alpha slot ledger.
+
+Because the alpha is source-only, no nonexistent `0.1.2-alpha.1` registry dependency is committed. The dedicated CI job is the reproducible compatibility authority until DSH publishes a registry build.
 
 ## Standard Commands
 
@@ -103,7 +134,7 @@ The existing Vitest suites cover:
 - Document paths, frontmatter, search, LRU, archiving, and conflicts;
 - worker tool isolation, the schema subset, and structured receipts;
 - lifecycle cues, scoring, idle debounce, cancellation, and watermark retention;
-- RPC authority, read-only behavior, and settings revisions;
+- real rc.2 / alpha Connection registration, RPC authority or authentication, read-only behavior, and settings revisions;
 - the Web workspace, bilingual copy, and key interactions;
 - core activation without Web-only services and Agent-cwd routing for Headless;
 - Client/Host source boundaries, deterministic build hashes, package contents, exports, and TypeScript resolution.
