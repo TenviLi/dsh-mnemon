@@ -551,7 +551,9 @@ export class MnemonService {
       ['embed', '--status'],
       signal === undefined ? {} : { signal },
     ))
-    const available = output?.ollama_available
+    // Mnemon ≥ 0.3.x reports `embedding_available`; `ollama_available` is the
+    // legacy alias kept for older binaries.
+    const available = output?.embedding_available ?? output?.ollama_available
     const model = text(output?.model)?.trim()
     const totalInsights = number(output?.total_insights)
     const embedded = number(output?.embedded)
