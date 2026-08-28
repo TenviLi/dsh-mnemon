@@ -57,6 +57,7 @@ mnemon:
     mode: inherit # inherit | fixed
     # provider: deepseek # required for fixed
     # model: deepseek-chat # required for fixed
+  remoteAccess: read-only # rc.2 only: read-only | trusted-host
 ```
 
 ## Options
@@ -90,6 +91,7 @@ mnemon:
 | `tabEnabled` | `true` | boolean | Whether to mount the Web entry selected by `displayMode`; Host RPC, commands, and Agent tools remain registered when off |
 | `writeEnabled` | `true` | boolean | Whether to expose semantic write tools, write RPC, and write commands |
 | `taskAgentModel` | `{ mode: inherit }` | `inherit` / `fixed` | Model route for independent task Agents used by AI metadata, Agent Query, memory distillation, and Document archiving, plus the idle-review worker; `fixed` requires both `provider` and `model` and also pins their bounded workers for write, answer, provider placement, migration, compaction, archive, and metadata maintenance. Conversation Recall and Related are direct Host reads and do not use this route |
+| `remoteAccess` | `read-only` | `read-only` / `trusted-host` | DSH 0.1.1-rc.2 compatibility policy for non-loopback Mnemon management RPC; startup-only and ignored by DSH 0.1.2-alpha.1 |
 | `mnemon-ui.turnBar` | `true` | boolean | Turn-tail memory activity bar; on by default, **applies live after saving** |
 | `mnemon-ui.saveAction` | `true` | boolean | “Save to memory” icon and confirmation on finalized assistant replies; on by default, **applies live after saving** |
 
@@ -149,9 +151,11 @@ Policies are pure, bounded host extensions. A plugin may call `registerRecallQua
 
 ### Browser authentication
 
-DSH 0.1.2-alpha.1 removes method-specific `loopback` / `trusted-host` privilege tiers. Every Mnemon RPC now crosses the same DSH browser-session boundary established by the one-time launch token and signed cookie. Channel separation still keeps schemas and payload responsibilities narrow, but it no longer grants different callers different methods.
+One branch-free registration path supports both verified DSH versions. Mnemon always supplies the trailing authority object required by 0.1.1-rc.2; the 0.1.2-alpha.1 two-argument JavaScript implementation naturally ignores it, so no package-version check or capability branch is involved.
 
-The obsolete `remoteAccess` setting has therefore been removed. Delete it from local patches when moving to DSH 0.1.2. `writeEnabled=false` remains a product-level read-only mode for semantic mutations and Pack import; it is not a substitute for DSH authentication, and an authenticated tool-capable Host session is a fully privileged principal. DSH's shipped network support and Host/Origin restrictions still apply—do not expose the loopback HTTP server as an unauthenticated public service.
+On DSH 0.1.1-rc.2, `remoteAccess` remains a real startup security boundary and cannot be changed through Web settings. The default `read-only` mode keeps settings, ZIP backups, Provider connections, and broad mutations loopback-only; `trusted-host` promotes all three management channels together and must be used only behind reliable deployment authentication. DSH `trustedHosts` is a Host/Origin fence, not user authentication.
+
+DSH 0.1.2-alpha.1 removes those method-specific privilege tiers and authenticates every Mnemon RPC through the browser session established by its one-time launch token and signed cookie. It ignores `remoteAccess`, which remains accepted solely so the same plugin configuration can roll back to rc.2 safely. `writeEnabled=false` is a product-level read-only mode in both versions; it is not a substitute for transport authentication.
 
 ## Storage Scopes
 

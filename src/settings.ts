@@ -1,4 +1,4 @@
-import type { HostConnectionHandle, HostRpcHandler, HostSettingsService, RpcResult } from './contracts.ts'
+import type { HostConnectionHandle, HostRpcAuthority, HostRpcHandler, HostSettingsService, RpcResult } from './contracts.ts'
 import { MNEMON_SETTINGS_CHANNEL, MNEMON_SETTINGS_NAMESPACE, MNEMON_UI_SETTINGS_NAMESPACE } from './shared/contracts.ts'
 
 export { MNEMON_SETTINGS_CHANNEL, MNEMON_SETTINGS_NAMESPACE, MNEMON_UI_SETTINGS_NAMESPACE } from './shared/contracts.ts'
@@ -50,6 +50,9 @@ const MUTABLE_FIELDS = [
   'routingGuidance', 'lifecycleEnabled', 'recallMode', 'writebackMode', 'idleReviewMs',
   'displayMode', 'tabEnabled', 'writeEnabled', 'persistenceStrategy', 'taskAgentModel',
 ]
+// remoteAccess is intentionally absent: on rc.2 changing the transport
+// authority requires a local configuration edit and a Host restart. On
+// 0.1.2-alpha.1 the setting is accepted only for rollback compatibility.
 
 /** Nested paths of the live in-conversation interaction toggles. */
 const INTERACTION_PATHS: string[][] = [
@@ -105,6 +108,6 @@ export function createSettingsHandler(settings: HostSettingsService): HostRpcHan
   }
 }
 
-export function registerSettingsRpc(connection: HostConnectionHandle, settings: HostSettingsService): void {
-  connection.rpc.handle(MNEMON_SETTINGS_CHANNEL, createSettingsHandler(settings))
+export function registerSettingsRpc(connection: HostConnectionHandle, settings: HostSettingsService, authority: HostRpcAuthority = 'loopback'): void {
+  connection.rpc.handle(MNEMON_SETTINGS_CHANNEL, createSettingsHandler(settings), { authority })
 }

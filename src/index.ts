@@ -119,7 +119,11 @@ export function apply(rawContext: unknown, config: MnemonConfig = {}): void {
     // `inject` guarantees the service at runtime; retain the defensive guard
     // because HostContextShape also models profiles where it is absent.
     if (webContext.connection === undefined) return
-    registerRpc(webContext.connection, runtime, lifecycle)
-    registerSettingsRpc(webContext.connection, ctx.settings)
+    // Keep one branch-free call shape across both supported DSH generations:
+    // rc.2 enforces this legacy channel authority, while 0.1.2-alpha.1 ignores
+    // the extra JavaScript argument and authenticates every Host API uniformly.
+    const managementAuthority = resolved.remoteAccess === 'trusted-host' ? 'trusted-host' : 'loopback'
+    registerRpc(webContext.connection, runtime, lifecycle, undefined, undefined, undefined, undefined, managementAuthority)
+    registerSettingsRpc(webContext.connection, ctx.settings, managementAuthority)
   })
 }

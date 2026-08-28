@@ -27,7 +27,7 @@ DSH_SOURCE_ROOT=/absolute/path/to/deepseek-harness pnpm run dsh:link-source
 pnpm run verify
 ```
 
-链接命令会先校验每个 package 名称与 alpha 版本，在生成的 `node_modules` 中记录现有 registry 直连，然后才执行替换；它不会修改 `package.json` 或 `pnpm-lock.yaml`。验证后运行 `pnpm run dsh:restore-registry` 即可精确恢复所记录的链接；普通的 up-to-date install 会保留人工替换的链接。兼容工作覆盖已移除的 client runtime、由 controller/renderer 新归属的客户端服务、可扩展 locale ID、Workspace snapshot 变化，以及统一认证后的 Host RPC 注册。
+链接命令会先校验每个 package 名称与 alpha 版本，在生成的 `node_modules` 中记录现有 registry 直连，然后才执行替换；它不会修改 `package.json` 或 `pnpm-lock.yaml`。验证后运行 `pnpm run dsh:restore-registry` 即可精确恢复所记录的链接；普通的 up-to-date install 会保留人工替换的链接。兼容工作覆盖已移除的 client runtime、由 controller/renderer 新归属的客户端服务、可扩展 locale ID、Workspace snapshot 变化，以及无分支的双世代 Host RPC 注册。
 
 ### 兼容性研究结论
 
@@ -37,7 +37,7 @@ pnpm run verify
 - `conversation.chat.turnTail` 等 Chat 专属 slot contract 已移出 target-neutral conversation package；Mnemon 现在只声明 selector 所需的最小边界，不再导入旧 owner。
 - Workspace 列表不再提供 `recentWorkspaceId`；Mnemon 优先匹配当前 session 的 canonical cwd，否则选择首个可用 workspace。
 - 第三方语言包可以扩展 locale ID；Mnemon 会把未知 active locale 原样传给日期格式化，自身词典仍经 DSH locale fallback 解析。
-- `HostConnectionRpc.handle()` 不再接受逐方法 authority 选项；所有 RPC 与 stream 统一要求由启动 token 建立的浏览器会话。因此 Mnemon 删除 `remoteAccess`，通道拆分只表达 schema 与数据职责。
+- `HostConnectionRpc.handle()` 不再接受逐方法 authority 选项；alpha 的所有 RPC 与 stream 统一要求由启动 token 建立的浏览器会话。Mnemon 仍保留 rc.2 的 `remoteAccess` 配置，并始终传入 rc.2 所需的末尾 authority 对象：rc.2 会使用它，alpha 的双参数 JavaScript 实现会忽略它。整个过程不解析版本、不检查函数参数数量，也没有 capability 分支。
 - 旧 ApiProxy transport 已由 Remote/gateway API 取代；Mnemon 使用的 generic Connection channel 仍受支持。Headless 进度改写 stderr，不影响插件对 stdout 结果的断言。
 - DSH 新增 subagent 模型配置并调整 token 统计，但官方 lineage 行仍读取通用的完整日志 projection；Mnemon 因此保留 child-local projection wrapper，并针对 alpha slot ledger 验证。
 
@@ -134,7 +134,7 @@ Host 将所有 package dependency 保持为 external。Client 将 React、ReactD
 - Documents 路径、frontmatter、搜索、LRU、归档与冲突；
 - worker 工具隔离、schema 子集、结构化回执；
 - 生命周期 cue、评分、idle debounce、取消和水位保留；
-- RPC 认证注册、只读行为和设置 revision；
+- 真实 rc.2 / alpha Connection 注册、RPC authority 或认证、只读行为和设置 revision；
 - Web 工作台、双语文案和关键交互；
 - 不依赖 Web 专有服务的核心激活，以及 Headless 按 Agent cwd 路由；
 - Client/Host 源码边界、确定性构建 hash、发布包内容、exports 和 TypeScript 解析。

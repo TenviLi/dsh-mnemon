@@ -1,4 +1,4 @@
-import type { HostConnectionHandle, HostRpcHandler, RpcResult } from './contracts.ts'
+import type { HostConnectionHandle, HostRpcAuthority, HostRpcHandler, RpcResult } from './contracts.ts'
 import type { MnemonLifecycle } from './lifecycle.ts'
 import type { RuntimeMemoryController, RuntimeMemoryImportance, RuntimeMemoryTarget } from './runtime-memory.ts'
 import type { Category, EdgeType, Intent, MnemonService, SearchRequest, Source } from './service.ts'
@@ -636,15 +636,19 @@ export function createPackHandler(input: MnemonPackManager | LiveMnemonRuntime, 
   }
 }
 
-/** Register every Mnemon endpoint behind DSH's authenticated Host API boundary. */
-export function registerRpc(connection: HostConnectionHandle, input: RuntimeInput, lifecycle?: MnemonLifecycle, runtimeMemory?: RuntimeMemoryController, storage?: StorageScopeInspector, packs?: MnemonPackManager, versions?: VersionUpdateManager): void {
+/**
+ * Register one call shape across DSH rc.2 and 0.1.2-alpha.1. The former
+ * enforces channel authority; the latter ignores the trailing options object
+ * after applying its uniform browser-session authentication boundary.
+ */
+export function registerRpc(connection: HostConnectionHandle, input: RuntimeInput, lifecycle?: MnemonLifecycle, runtimeMemory?: RuntimeMemoryController, storage?: StorageScopeInspector, packs?: MnemonPackManager, versions?: VersionUpdateManager, managementAuthority: HostRpcAuthority = 'loopback'): void {
   const versionManager = versions ?? new VersionUpdateManager({ mnemonCliPath: () => findVersionCli(input) })
-  connection.rpc.handle(MNEMON_READ_CHANNEL, createReadHandler(input, lifecycle, runtimeMemory, storage, versionManager))
-  connection.rpc.handle(MNEMON_ACTIVATION_CHANNEL, createActivationHandler(input))
-  connection.rpc.handle(MNEMON_WRITE_CHANNEL, createWriteHandler(input, lifecycle, runtimeMemory, versionManager))
+  connection.rpc.handle(MNEMON_READ_CHANNEL, createReadHandler(input, lifecycle, runtimeMemory, storage, versionManager), { authority: 'trusted-host' })
+  connection.rpc.handle(MNEMON_ACTIVATION_CHANNEL, createActivationHandler(input), { authority: 'trusted-host' })
+  connection.rpc.handle(MNEMON_WRITE_CHANNEL, createWriteHandler(input, lifecycle, runtimeMemory, versionManager), { authority: managementAuthority })
   const packManager = isRoutedRuntime(input) ? input : packs
   const config = input.config
-  if (packManager !== undefined) connection.rpc.handle(MNEMON_PACK_CHANNEL, createPackHandler(packManager, () => config.writeEnabled))
+  if (packManager !== undefined) connection.rpc.handle(MNEMON_PACK_CHANNEL, createPackHandler(packManager, () => config.writeEnabled), { authority: managementAuthority })
 }
 
 function findVersionCli(input: RuntimeInput): string | undefined {

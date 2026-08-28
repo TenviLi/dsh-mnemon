@@ -191,8 +191,8 @@ describe('dsh-mnemon plugin composition', () => {
     expect(fixture.commands).toEqual([expect.objectContaining({ name: 'mnemon' })])
     expect(fixture.channels).toHaveLength(5)
     expect(fixture.channels).toEqual(expect.arrayContaining([
-      ['/dsh-mnemon-activation', expect.anything()],
-      ['/dsh-mnemon-pack', expect.anything()],
+      ['/dsh-mnemon-activation', expect.anything(), { authority: 'trusted-host' }],
+      ['/dsh-mnemon-pack', expect.anything(), { authority: 'loopback' }],
     ]))
     expect(fixture.registrations).toEqual([
       expect.arrayContaining(['mnemon', expect.anything(), expect.objectContaining({ applies: 'live' })]),
@@ -200,17 +200,27 @@ describe('dsh-mnemon plugin composition', () => {
     ])
   })
 
-  it('registers every Mnemon channel behind the uniform authenticated Host API', () => {
+  it('preserves rc.2 channel authorities with one call shape accepted by the authenticated alpha API', () => {
     const fixture = context()
     apply(fixture.ctx as never, { cliPath: '/fake/mnemon', dataDir: dataDir() })
     for (const channel of ['/dsh-mnemon-write', '/dsh-mnemon-settings', '/dsh-mnemon-pack']) {
       expect(fixture.channels).toEqual(expect.arrayContaining([
-        [channel, expect.anything()],
+        [channel, expect.anything(), { authority: 'loopback' }],
       ]))
     }
     expect(fixture.channels).toEqual(expect.arrayContaining([
-      ['/dsh-mnemon-read', expect.anything()],
+      ['/dsh-mnemon-read', expect.anything(), { authority: 'trusted-host' }],
     ]))
+  })
+
+  it('promotes all rc.2 management channels only through the startup compatibility setting', () => {
+    const fixture = context()
+    apply(fixture.ctx as never, { cliPath: '/fake/mnemon', dataDir: dataDir(), remoteAccess: 'trusted-host' })
+    for (const channel of ['/dsh-mnemon-write', '/dsh-mnemon-settings', '/dsh-mnemon-pack']) {
+      expect(fixture.channels).toEqual(expect.arrayContaining([
+        [channel, expect.anything(), { authority: 'trusted-host' }],
+      ]))
+    }
   })
 
   it('keeps stable live surfaces while fencing every mutation in read-only mode', async () => {
@@ -223,8 +233,8 @@ describe('dsh-mnemon plugin composition', () => {
     expect(() => runtimeTool.execute({ action: 'add', target: 'memory', content: 'blocked' }, { signal: new AbortController().signal })).toThrow('read-only')
     expect(fixture.channels).toHaveLength(5)
     expect(fixture.channels).toEqual(expect.arrayContaining([
-      ['/dsh-mnemon-activation', expect.anything()],
-      ['/dsh-mnemon-pack', expect.anything()],
+      ['/dsh-mnemon-activation', expect.anything(), { authority: 'trusted-host' }],
+      ['/dsh-mnemon-pack', expect.anything(), { authority: 'loopback' }],
     ]))
     expect(fixture.contexts).toEqual([])
   })

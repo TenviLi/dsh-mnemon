@@ -12,10 +12,20 @@ export type {
 } from './shared/contracts.ts'
 
 export type HostRpcHandler = (endpoint: string, payload: unknown, signal?: AbortSignal) => Promise<RpcResult<unknown>>
+export type HostRpcAuthority = 'trusted-host' | 'loopback'
+
+/**
+ * DSH rc.2 requires this registration policy. DSH 0.1.2-alpha.1 accepts only
+ * the first two JavaScript arguments and safely ignores this trailing value.
+ * Keeping one unconditional call shape avoids runtime version detection.
+ */
+export interface HostRpcRegistrationOptions {
+  readonly authority: HostRpcAuthority
+}
 
 export interface HostConnectionHandle {
   rpc: {
-    handle(channel: string, handler: HostRpcHandler): unknown
+    handle(channel: string, handler: HostRpcHandler, options: HostRpcRegistrationOptions): unknown
   }
 }
 

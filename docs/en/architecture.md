@@ -194,7 +194,7 @@ whether two items are duplicates    process timeout/cancel
 how to summarize a Document         file lock + atomic rename
 whether a reusable artifact exists  UTF-8 capacity accounting
                                      revision conflict rejection
-                                     authenticated RPC boundary
+                                     RPC trust / authentication boundary
 ```
 
 Persona constraints must be distinguished from hard Host guarantees. For example, the MEMORY archival worker is instructed to cover every committed hot-memory item, but the Host can strictly validate only the structured action, revision, and byte budget; the Host does validate USER compaction source coverage item by item.
@@ -206,13 +206,13 @@ The WebUI does not start system processes or open SQLite directly:
 ```text
 browser component
   -> typed client wrapper
-  -> DSH browser-session authentication
+  -> DSH transport trust / authentication
   -> Host validation
   -> controller / service / bounded worker
   -> local CLI or managed files
 ```
 
-DSH browser-session authentication now protects every channel uniformly. The activation handler still accepts only an exact body ID and Boolean state, and Provider credential values travel only through the private management catalog while the ordinary read catalog stays redacted; those channel splits constrain data shape, not caller privilege. Browser components derive product writability from Host settings and disable mutation controls before transport. When `writeEnabled=false`, every mutation handler rejects the request at the Host boundary.
+The same Mnemon build supports both DSH transport generations without detecting a runtime version. On 0.1.1-rc.2, read and activation channels use `trusted-host`, while write, settings, and backup remain `loopback` unless the startup-only `remoteAccess=trusted-host` compatibility setting promotes them together. On 0.1.2-alpha.1, DSH ignores the trailing authority argument and protects every channel with its launch-token-derived browser session. The activation handler still accepts only an exact body ID and Boolean state, and Provider credential values travel only through the private management catalog while the ordinary read catalog stays redacted. Browser components derive product writability from Host settings and disable mutation controls before transport. When `writeEnabled=false`, every mutation handler rejects the request at the Host boundary.
 
 ## Internationalization
 

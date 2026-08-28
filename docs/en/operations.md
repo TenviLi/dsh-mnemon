@@ -119,8 +119,9 @@ Recommended migration: export from the old scope → switch and confirm the new 
 
 ### Web and model
 
-- Every RPC and stream requires the same authenticated DSH browser session; Mnemon channels do not define method-specific `loopback` / `trusted-host` privilege tiers.
-- The ordinary Provider catalog is redacted. Saved credential values travel only through the management channel after DSH browser authentication.
+- On DSH 0.1.1-rc.2, read and activation use `trusted-host`; write, settings, and backup default to `loopback` and are promoted together only by local `remoteAccess: trusted-host` configuration.
+- On DSH 0.1.2-alpha.1, every RPC and stream requires the same authenticated browser session; the retained `remoteAccess` value has no transport effect.
+- The ordinary Provider catalog is redacted. Saved credential values travel only through the version-appropriate protected management channel.
 - The WebUI follows the Host's writable settings snapshot instead of inferring capability from transport locality; an unavailable settings channel renders an explicit diagnostic rather than an empty page.
 - The WebUI neither reads SQLite, starts processes, calls remote providers, nor supplies arbitrary update commands; provider network access remains inside the Host.
 - Workers use persona, tool allowlists, schema-validated one-run result tools, and `maxDepth: 1`.
@@ -153,7 +154,8 @@ Report vulnerabilities privately through [SECURITY.md](../../SECURITY.md), not a
 | ZIP export reports WAL busy | Wait for Memory Space writes to settle; do not bypass the uncheckpointed-WAL guard |
 | ZIP import checksum/schema failure | The backup is damaged or incompatible; preserve the current root and never unzip over it manually |
 | No Update button | Already current, remote check failed, or the source is link/manual; follow panel guidance |
-| Mnemon RPC returns 401 after a DSH restart or authority change | Open the launch URL printed by `dsh web` so the one-time token can establish a fresh authority-bound browser cookie |
+| An rc.2 remote page can activate a Memory Space but cannot perform another write | Secure default; only behind reliable authentication, set `remoteAccess: trusted-host` locally, configure DSH `trustedHosts`, and restart the Host |
+| On alpha, Mnemon RPC returns 401 after a DSH restart or authority change | Open the launch URL printed by `dsh web` so the one-time token can establish a fresh authority-bound browser cookie |
 
 ## Known limitations
 

@@ -554,13 +554,20 @@ describe('Mnemon RPC', () => {
     expect(service.remember).not.toHaveBeenCalled()
   })
 
-  it('registers every channel on the authenticated Host API', () => {
+  it('always supplies the rc.2 authority object accepted and ignored by the alpha API', () => {
     const handle = vi.fn()
     const connection = { rpc: { handle } } as unknown as HostConnectionHandle
     registerRpc(connection, fakeService())
-    expect(handle).toHaveBeenCalledWith(MNEMON_READ_CHANNEL, expect.any(Function))
-    expect(handle).toHaveBeenCalledWith(MNEMON_ACTIVATION_CHANNEL, expect.any(Function))
-    expect(handle).toHaveBeenCalledWith(MNEMON_WRITE_CHANNEL, expect.any(Function))
+    expect(handle).toHaveBeenCalledWith(MNEMON_READ_CHANNEL, expect.any(Function), { authority: 'trusted-host' })
+    expect(handle).toHaveBeenCalledWith(MNEMON_ACTIVATION_CHANNEL, expect.any(Function), { authority: 'trusted-host' })
+    expect(handle).toHaveBeenCalledWith(MNEMON_WRITE_CHANNEL, expect.any(Function), { authority: 'loopback' })
+  })
+
+  it('retains explicit rc.2 promotion without branching on the DSH version', () => {
+    const handle = vi.fn()
+    const connection = { rpc: { handle } } as unknown as HostConnectionHandle
+    registerRpc(connection, fakeService(), undefined, undefined, undefined, undefined, undefined, 'trusted-host')
+    expect(handle).toHaveBeenCalledWith(MNEMON_WRITE_CHANNEL, expect.any(Function), { authority: 'trusted-host' })
   })
 
   it('keeps Pack backup and restore on a dedicated authenticated channel', async () => {
@@ -587,7 +594,7 @@ describe('Mnemon RPC', () => {
 
     const handle = vi.fn()
     registerRpc({ rpc: { handle } } as unknown as HostConnectionHandle, fakeService(), undefined, undefined, undefined, packs)
-    expect(handle).toHaveBeenCalledWith(MNEMON_PACK_CHANNEL, expect.any(Function))
+    expect(handle).toHaveBeenCalledWith(MNEMON_PACK_CHANNEL, expect.any(Function), { authority: 'loopback' })
   })
 
   it('keeps the live write channel stable but rejects it in read-only mode', async () => {

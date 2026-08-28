@@ -117,7 +117,8 @@ RPC 是 DSH Host 与插件客户端之间的内部桥，不是稳定外部 HTTP 
 
 ```text
 channel:   /dsh-mnemon-read
-authentication: DSH browser session
+rc.2 authority: trusted-host
+alpha authentication: DSH browser session
 ```
 
 | Endpoint | 行为 |
@@ -141,7 +142,8 @@ authentication: DSH browser session
 
 ```text
 channel:   /dsh-mnemon-activation
-authentication: DSH browser session
+rc.2 authority: trusted-host
+alpha authentication: DSH browser session
 endpoint:  body
 ```
 
@@ -151,7 +153,8 @@ endpoint:  body
 
 ```text
 channel:   /dsh-mnemon-write
-authentication: DSH browser session
+rc.2 authority: loopback（`remoteAccess=trusted-host` 时为 trusted-host）
+alpha authentication: DSH browser session
 ```
 
 | Endpoint | 行为 |
@@ -173,7 +176,8 @@ authentication: DSH browser session
 
 ```text
 channel:   /dsh-mnemon-pack
-authentication: DSH browser session
+rc.2 authority: loopback（`remoteAccess=trusted-host` 时为 trusted-host）
+alpha authentication: DSH browser session
 ```
 
 | Endpoint | 行为 |
@@ -189,14 +193,15 @@ authentication: DSH browser session
 
 ```text
 channel:   /dsh-mnemon-settings
-authentication: DSH browser session
+rc.2 authority: loopback（`remoteAccess=trusted-host` 时为 trusted-host）
+alpha authentication: DSH browser session
 namespaces: mnemon, mnemon-ui
 endpoints: get, mutate
 ```
 
 mutation 使用 settings revision 防止覆盖并发编辑。`mnemon` 管理 Host / 存储设置；`mnemon-ui` 管理 `turnBar` 与 `saveAction`。
 
-DSH 0.1.2-alpha.1 使用同一个浏览器会话认证完整 Host API。这些通道用于拆分 schema、载荷敏感度与兼容路由，不再构成逐方法的权限层。
+Mnemon 对两个 Host 使用同一种注册调用：始终传入 rc.2 authority 对象，alpha 将其作为额外 JavaScript 参数忽略。因此 rc.2 保留逐方法 trust 层，DSH 0.1.2-alpha.1 则使用同一浏览器会话认证完整 Host API；整个过程没有运行时版本或函数参数数量分支。
 
 ## npm 导出与扩展服务
 

@@ -27,7 +27,7 @@ DSH_SOURCE_ROOT=/absolute/path/to/deepseek-harness pnpm run dsh:link-source
 pnpm run verify
 ```
 
-The link command validates every package name and alpha version, records the existing direct registry links under generated `node_modules`, and only then replaces them. It does not edit `package.json` or `pnpm-lock.yaml`. Run `pnpm run dsh:restore-registry` afterward to restore exactly those recorded links; an ordinary up-to-date install preserves manually replaced links. The compatibility work covers the removed client runtime, controller/renderer-owned client services, extensible locale IDs, the Workspace snapshot change, and uniform authenticated Host RPC registration.
+The link command validates every package name and alpha version, records the existing direct registry links under generated `node_modules`, and only then replaces them. It does not edit `package.json` or `pnpm-lock.yaml`. Run `pnpm run dsh:restore-registry` afterward to restore exactly those recorded links; an ordinary up-to-date install preserves manually replaced links. The compatibility work covers the removed client runtime, controller/renderer-owned client services, extensible locale IDs, the Workspace snapshot change, and the branch-free dual-generation Host RPC registration.
 
 ### Compatibility findings
 
@@ -37,7 +37,7 @@ The [upstream alpha release](https://github.com/deepseek-ai/deepseek-harness/rel
 - Chat-specific slot contracts, including `conversation.chat.turnTail`, moved out of the target-neutral conversation package. Mnemon now types its minimum selector boundary without importing the old owner.
 - The Workspace list no longer publishes `recentWorkspaceId`; Mnemon selects the current session's canonical cwd match, then the first available workspace.
 - Locale IDs are extensible by third-party language packs, so Mnemon passes unknown active locale IDs through for date formatting while its own dictionary still falls back through DSH locale resolution.
-- `HostConnectionRpc.handle()` no longer accepts per-method authority options. Every RPC and stream requires the same launch-token-derived browser session, so Mnemon removes `remoteAccess` and treats its channel split as schema/data separation only.
+- `HostConnectionRpc.handle()` no longer accepts per-method authority options. Every alpha RPC and stream requires the same launch-token-derived browser session. Mnemon nevertheless retains the rc.2 `remoteAccess` configuration and always passes rc.2's trailing authority object: rc.2 consumes it, while alpha's two-argument JavaScript implementation ignores it. This preserves both security models without version parsing, function-arity inspection, or a capability branch.
 - The legacy ApiProxy transport is removed in favor of Remote/gateway APIs. Mnemon's generic Connection channels remain supported; Headless progress moving to stderr does not affect its stdout result assertion.
 - DSH adds subagent model configuration and revises token accounting, but the official lineage row still consumes the generic complete-log projection. Mnemon therefore retains its child-local projection wrapper and verifies it against the alpha slot ledger.
 
@@ -134,7 +134,7 @@ The existing Vitest suites cover:
 - Document paths, frontmatter, search, LRU, archiving, and conflicts;
 - worker tool isolation, the schema subset, and structured receipts;
 - lifecycle cues, scoring, idle debounce, cancellation, and watermark retention;
-- RPC authentication registration, read-only behavior, and settings revisions;
+- real rc.2 / alpha Connection registration, RPC authority or authentication, read-only behavior, and settings revisions;
 - the Web workspace, bilingual copy, and key interactions;
 - core activation without Web-only services and Agent-cwd routing for Headless;
 - Client/Host source boundaries, deterministic build hashes, package contents, exports, and TypeScript resolution.
