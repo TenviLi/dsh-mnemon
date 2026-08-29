@@ -667,6 +667,19 @@ function EmbeddingSettingsSection(props: {
         />
       </label>
       <label>
+        {props.t('config.embeddingProtocol')}
+        <select
+          aria-label={props.t('config.embeddingProtocol')}
+          value={props.draft.embeddingProtocol}
+          disabled={props.disabled || !props.draft.embeddingEnabled}
+          onChange={event => props.onEdit('embeddingProtocol', event.target.value)}
+        >
+          <option value="auto">{props.t('config.embeddingProtocolAuto')}</option>
+          <option value="ollama">{props.t('config.embeddingProtocolOllama')}</option>
+          <option value="openai">{props.t('config.embeddingProtocolOpenai')}</option>
+        </select>
+      </label>
+      <label>
         {props.t('config.embeddingApiKey')}
         <input
           type="password"
@@ -681,19 +694,6 @@ function EmbeddingSettingsSection(props: {
           placeholder="sk-…"
           onChange={event => props.onEdit('embeddingApiKey', event.target.value)}
         />
-      </label>
-      <label>
-        {props.t('config.embeddingProtocol')}
-        <select
-          aria-label={props.t('config.embeddingProtocol')}
-          value={props.draft.embeddingProtocol}
-          disabled={props.disabled || !props.draft.embeddingEnabled}
-          onChange={event => props.onEdit('embeddingProtocol', event.target.value)}
-        >
-          <option value="auto">{props.t('config.embeddingProtocolAuto')}</option>
-          <option value="ollama">{props.t('config.embeddingProtocolOllama')}</option>
-          <option value="openai">{props.t('config.embeddingProtocolOpenai')}</option>
-        </select>
       </label>
     </div>
     <p className={css.embeddingSecurity}>{props.t('config.embeddingSecurity')}</p>
