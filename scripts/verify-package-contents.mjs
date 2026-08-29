@@ -51,9 +51,9 @@ const relativeReadmeImages = readmeFiles.flatMap((path) => {
     .map(source => `${path}: ${source}`)
 })
 
-// The split Runtime profile adds one bilingual settings surface and public
-// contracts on top of configurable capacity support; keep the release below 1.72 MB.
-const maximumUnpackedBytes = 1_720_000
+// The split Runtime profile and managed embedding protocols add bilingual
+// settings surfaces and public contracts; keep the release below 1.73 MB.
+const maximumUnpackedBytes = 1_730_000
 
 if (missing.length > 0 || unexpected.length > 0 || hostLeaks.length > 0 || relativeReadmeImages.length > 0 || pack.unpackedSize > maximumUnpackedBytes) {
   if (missing.length > 0) console.error(`Missing package files:\n${missing.map(path => `- ${path}`).join('\n')}`)
