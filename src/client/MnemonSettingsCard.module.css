@@ -297,10 +297,11 @@
   font-size: 12px;
 }
 
-/* Selects share the host 模型 Provider picker treatment: the OS arrow is
+/* Selects share the host model Provider picker treatment: the OS arrow is
    replaced by the shared 12px chevron inset on the right, with the right pad
-   reserving its cell. Data-URI SVGs cannot resolve CSS variables; #81858C is
-   the caption gray shared by both themes. */
+   reserving its cell. THEME-DEPENDENT: data-URI SVGs cannot resolve CSS
+   variables, so the chevron gray #81858C (the caption gray shared by both
+   themes) is hardcoded here; revisit it if the theme palette gains variants. */
 .providerIdentityFields select,
 .taskAgentFields select,
 .providerFieldControl select {
