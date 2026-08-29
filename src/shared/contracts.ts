@@ -161,6 +161,8 @@ export interface Config {
   taskAgentModel?: TaskAgentModelConfig
 }
 
+export type MnemonEmbeddingProtocol = 'auto' | 'ollama' | 'openai'
+
 export interface MnemonEmbeddingConfig {
   /** When false or omitted, Mnemon keeps its inherited environment and built-in defaults. */
   enabled?: boolean
@@ -168,6 +170,8 @@ export interface MnemonEmbeddingConfig {
   model?: string
   /** Optional Bearer token forwarded as MNEMON_EMBED_API_KEY for OpenAI-compatible endpoints. */
   apiKey?: string
+  /** Explicit wire-protocol override; 'auto' keeps Mnemon's /v1 auto-detection. */
+  protocol?: MnemonEmbeddingProtocol
 }
 
 export interface ResolvedMnemonEmbeddingConfig {
@@ -175,6 +179,7 @@ export interface ResolvedMnemonEmbeddingConfig {
   endpoint: string
   model: string
   apiKey: string
+  protocol: MnemonEmbeddingProtocol
 }
 
 export interface TaskAgentModelConfig {

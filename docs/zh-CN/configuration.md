@@ -75,7 +75,7 @@ mnemon:
 | `runtimeMemory.memoryLimitBytes` | `10240` | 1–1048576 字节 | 完整 `MEMORY.md` 投影的 UTF-8 字节上限 |
 | `runtimeMemory.userLimitBytes` | `4096` | 1–1048576 字节 | 完整 `USER.md` 投影的 UTF-8 字节上限 |
 | `runtimeMemory.maintenanceMaxTokens` | `8192` | 1–1000000 tokens | Runtime 迁移与压缩 worker 的完成 token 预算；不改变项目档案归档与元信息维护预算 |
-| `embedding` | `{ enabled: false, endpoint: http://localhost:11434, model: nomic-embed-text, apiKey: '' }` | enabled + HTTP(S) endpoint + model + 可选 apiKey | 开启后，Host 为每个 Mnemon CLI 子进程注入保存的 endpoint、模型与 API Key；endpoint 以 `/v1` 结尾时 Mnemon 自动使用 OpenAI 兼容协议并以 Bearer 头携带 apiKey；关闭后不干预既有 Host 环境和 Mnemon 默认值 |
+| `embedding` | `{ enabled: false, endpoint: http://localhost:11434, model: nomic-embed-text, apiKey: '', protocol: auto }` | enabled + HTTP(S) endpoint + model + 可选 apiKey + protocol（auto/ollama/openai） | 开启后，Host 为每个 Mnemon CLI 子进程注入保存的 endpoint、模型、API Key 与协议覆盖；endpoint 以 `/v1` 结尾时 Mnemon 自动使用 OpenAI 兼容协议并以 Bearer 头携带 apiKey，`protocol: openai` 可对非 `/v1` 端点显式指定；关闭后不干预既有 Host 环境和 Mnemon 默认值 |
 | `memoryTopology.layers.<id>.enabled` | 三个默认层为 `true` | boolean | 是否让该 Layer 参与；关闭不会删除或迁移已有数据 |
 | `recallQuality.policy` | `strict-v1` | 已注册策略 ID | 在召回正文序列化给 Agent 或客户端前执行的确定性策略 |
 | `recallQuality.lowScoreThreshold` | `0.25` | 0–1，低于高分阈值 | `strict-v1` 会移除低于此边界的标准化分数结果 |
@@ -127,18 +127,19 @@ mnemon:
     model: qwen3-embedding:0.6b
 ```
 
-OpenAI 兼容服务器把 endpoint 指到 `/v1` 基础 URL 即可，Mnemon 会自动从 Ollama 协议切换到 OpenAI 协议（`/v1/embeddings`）；需要认证的服务填写 `apiKey`，它将以 Bearer 头注入：
+OpenAI 兼容服务器把 endpoint 指到 `/v1` 基础 URL 即可，Mnemon 会自动从 Ollama 协议切换到 OpenAI 协议（`/v1/embeddings`）；需要认证的服务填写 `apiKey`，它将以 Bearer 头注入。不以 `/v1` 结尾的兼容端点用 `protocol: openai` 显式指定协议：
 
 ```yaml
 mnemon:
   embedding:
     enabled: true
-    endpoint: http://127.0.0.1:18000/v1
+    endpoint: http://127.0.0.1:8080/api
     model: bge-m3-mlx-8bit
     apiKey: sk-...
+    protocol: openai
 ```
 
-Host 会复制正常进程环境，然后只在子进程中覆盖 `MNEMON_EMBED_ENDPOINT`、`MNEMON_EMBED_MODEL` 与 `MNEMON_EMBED_API_KEY`；不会修改桌面会话、`launchctl`、shell 文件或 Mnemon 持久数据。保存后会切换到新的运行图，后续调用无需重启 DSH 即可使用新值。`enabled: false` 或省略 `embedding` 时，dsh-mnemon 不注入覆盖值，原有继承环境与 Mnemon 内建默认值保持不变。`MNEMON_EMBED_DIMENSIONS` 与 `MNEMON_EMBED_PROTOCOL` 仍属于可通过 Host 环境继承的高级配置。
+Host 会复制正常进程环境，然后只在子进程中覆盖 `MNEMON_EMBED_ENDPOINT`、`MNEMON_EMBED_MODEL`、`MNEMON_EMBED_API_KEY` 与 `MNEMON_EMBED_PROTOCOL`（`protocol: auto` 时不注入协议变量，由 Mnemon 按 `/v1` 自动探测）；不会修改桌面会话、`launchctl`、shell 文件或 Mnemon 持久数据。保存后会切换到新的运行图，后续调用无需重启 DSH 即可使用新值。`enabled: false` 或省略 `embedding` 时，dsh-mnemon 不注入覆盖值，原有继承环境与 Mnemon 内建默认值保持不变。`MNEMON_EMBED_DIMENSIONS` 仍属于可通过 Host 环境继承的高级配置。
 
 Endpoint 必须是不含凭据、查询参数或片段的 HTTP(S) 绝对 URL。Mnemon 会把记忆与查询正文发给该服务；apiKey 与其他设置一样保存在 DSH 设置文件中，远程明文 HTTP 会暴露传输内容，请使用受信任的回环地址或 HTTPS。“测试状态”会针对当前默认 Store 执行实际生效的 `mnemon embed --status`，只报告嵌入服务可达性、模型与嵌入覆盖率，不会回填或改写记忆。有未保存编辑时必须先保存，避免把草稿值误报成已生效。
 

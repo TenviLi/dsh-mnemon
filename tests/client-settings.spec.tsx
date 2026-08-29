@@ -37,13 +37,16 @@ describe('MnemonSettingsCard', () => {
     const endpoint = screen.getByRole('textbox', { name: '嵌入 Endpoint' }) as HTMLInputElement
     const model = screen.getByRole('textbox', { name: '嵌入模型' }) as HTMLInputElement
     const apiKey = screen.getByLabelText('API Key（可选，OpenAI 兼容服务）') as HTMLInputElement
+    const protocol = screen.getByRole('combobox', { name: '协议' }) as HTMLSelectElement
     expect((managed as HTMLInputElement).checked).toBe(false)
     expect(endpoint.value).toBe('http://localhost:11434')
     expect(model.value).toBe('nomic-embed-text')
     expect(apiKey.value).toBe('')
     expect(apiKey.type).toBe('password')
+    expect(protocol.value).toBe('auto')
     expect(endpoint.disabled).toBe(true)
     expect(apiKey.disabled).toBe(true)
+    expect(protocol.disabled).toBe(true)
 
     fireEvent.click(managed)
     fireEvent.change(endpoint, { target: { value: 'ftp://invalid.example' } })
@@ -53,15 +56,16 @@ describe('MnemonSettingsCard', () => {
     fireEvent.change(endpoint, { target: { value: 'http://127.0.0.1:11434?' } })
     expect((screen.getByRole('button', { name: '保存' }) as HTMLButtonElement).disabled).toBe(true)
 
-    fireEvent.change(endpoint, { target: { value: ' http://127.0.0.1:18000/v1/// ' } })
+    fireEvent.change(endpoint, { target: { value: ' http://127.0.0.1:8080/api/// ' } })
     fireEvent.change(model, { target: { value: ' qwen3-embedding:0.6b ' } })
     fireEvent.change(apiKey, { target: { value: '  sk-secret  ' } })
+    fireEvent.change(protocol, { target: { value: 'openai' } })
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => expect(mutate).toHaveBeenCalledWith([{
       op: 'set',
       path: ['embedding'],
-      value: { enabled: true, endpoint: 'http://127.0.0.1:18000/v1', model: 'qwen3-embedding:0.6b', apiKey: 'sk-secret' },
+      value: { enabled: true, endpoint: 'http://127.0.0.1:8080/api', model: 'qwen3-embedding:0.6b', apiKey: 'sk-secret', protocol: 'openai' },
     }]))
   })
 
@@ -90,7 +94,7 @@ describe('MnemonSettingsCard', () => {
     await waitFor(() => expect(mutate).toHaveBeenCalledWith([{
       op: 'set',
       path: ['embedding'],
-      value: { enabled: false, model: 'qwen3-embedding:0.6b', apiKey: '' },
+      value: { enabled: false, model: 'qwen3-embedding:0.6b', apiKey: '', protocol: 'auto' },
     }]))
   })
 

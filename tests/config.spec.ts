@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveConfig } from '../src/config.ts'
-import type { ProcessRunner } from '../src/process.ts'
+import type { ProcessOptions, ProcessRunner } from '../src/process.ts'
 import { createRunner } from '../src/runner.ts'
 
 afterEach(() => vi.unstubAllEnvs())
@@ -144,8 +144,9 @@ describe('Mnemon config and resolution', () => {
       endpoint: 'https://ollama.example.test/prefix',
       model: 'qwen3-embedding:0.6b',
       apiKey: 'sk-secret',
+      protocol: 'auto',
     })
-    expect(resolveConfig({}).embedding).toMatchObject({ enabled: false, endpoint: 'http://localhost:11434', model: 'nomic-embed-text', apiKey: '' })
+    expect(resolveConfig({}).embedding).toMatchObject({ enabled: false, endpoint: 'http://localhost:11434', model: 'nomic-embed-text', apiKey: '', protocol: 'auto' })
     expect(() => resolveConfig({ embedding: { enabled: true, endpoint: 'ftp://ollama.example.test' } })).toThrow('HTTP or HTTPS')
     expect(() => resolveConfig({ embedding: { enabled: true, endpoint: 'http://user:secret@localhost:11434' } })).toThrow('without credentials')
     expect(() => resolveConfig({ embedding: { enabled: true, endpoint: 'http://localhost:11434?tenant=one' } })).toThrow('without credentials')
@@ -154,6 +155,7 @@ describe('Mnemon config and resolution', () => {
     expect(() => resolveConfig({ embedding: { enabled: true, model: 'bad\nmodel' } })).toThrow('control characters')
     expect(() => resolveConfig({ embedding: { enabled: true, apiKey: 'bad\nkey' } })).toThrow('without control characters')
     expect(() => resolveConfig({ embedding: { enabled: true, apiKey: 'k'.repeat(2049) } })).toThrow('0..2048')
+    expect(() => resolveConfig({ embedding: { enabled: true, protocol: 'grpc' as never } })).toThrow('unsupported embedding protocol')
   })
 
   it('resolves a bounded automatic persistence strategy without changing its provider connections', () => {
@@ -256,6 +258,7 @@ describe('Mnemon config and resolution', () => {
     vi.stubEnv('MNEMON_EMBED_ENDPOINT', 'http://launchctl.example:11434')
     vi.stubEnv('MNEMON_EMBED_MODEL', 'launchctl-model')
     vi.stubEnv('MNEMON_EMBED_API_KEY', 'host-secret')
+    vi.stubEnv('MNEMON_EMBED_PROTOCOL', 'openai')
     vi.stubEnv('MNEMON_EMBED_DIMENSIONS', '256')
     const processRunner = vi.fn<ProcessRunner>(async () => ({ stdout: '{}', stderr: '', exitCode: 0 }))
     const runner = createRunner(resolveConfig({
@@ -273,23 +276,28 @@ describe('Mnemon config and resolution', () => {
         MNEMON_EMBED_DIMENSIONS: '256',
       }),
     }))
+    const options = processRunner.mock.calls[0]![2] as ProcessOptions
+    expect(options.env?.MNEMON_EMBED_PROTOCOL).toBeUndefined()
     expect(process.env.MNEMON_EMBED_ENDPOINT).toBe('http://launchctl.example:11434')
     expect(process.env.MNEMON_EMBED_MODEL).toBe('launchctl-model')
     expect(process.env.MNEMON_EMBED_API_KEY).toBe('host-secret')
   })
 
-  it('forwards a saved embedding API key over the inherited Host environment', async () => {
+  it('forwards a saved embedding API key and protocol over the inherited Host environment', async () => {
     vi.stubEnv('MNEMON_EMBED_API_KEY', 'host-secret')
     const processRunner = vi.fn<ProcessRunner>(async () => ({ stdout: '{}', stderr: '', exitCode: 0 }))
     const runner = createRunner(resolveConfig({
       cliPath: '/fake/mnemon',
-      embedding: { enabled: true, endpoint: 'http://127.0.0.1:18000/v1', model: 'bge-m3-mlx-8bit', apiKey: ' sk-managed ' },
+      embedding: { enabled: true, endpoint: 'http://127.0.0.1:8080/api', model: 'bge-m3-mlx-8bit', apiKey: ' sk-managed ', protocol: 'openai' },
     }), processRunner)
 
     await runner.runText(['status'])
 
     expect(processRunner).toHaveBeenCalledWith('/fake/mnemon', ['status'], expect.objectContaining({
-      env: expect.objectContaining({ MNEMON_EMBED_API_KEY: 'sk-managed' }),
+      env: expect.objectContaining({
+        MNEMON_EMBED_API_KEY: 'sk-managed',
+        MNEMON_EMBED_PROTOCOL: 'openai',
+      }),
     }))
   })
 
