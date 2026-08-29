@@ -380,15 +380,15 @@ export function MnemonSettingsCard({ scope, interactionScope: suppliedInteractio
                 enabled: true,
                 endpoint: draft.embeddingEndpoint.trim().replace(/\/+$/u, ''),
                 model: draft.embeddingModel.trim(),
-                apiKey: draft.embeddingApiKey.trim(),
                 protocol: draft.embeddingProtocol,
+                apiKey: draft.embeddingApiKey.trim(),
               }
             : {
                 enabled: false,
                 ...(validEndpoint ? { endpoint: draft.embeddingEndpoint.trim().replace(/\/+$/u, '') } : {}),
                 ...(validModel ? { model: draft.embeddingModel.trim() } : {}),
-                ...(validApiKey ? { apiKey: draft.embeddingApiKey.trim() } : {}),
                 ...(validProtocol ? { protocol: draft.embeddingProtocol } : {}),
+                ...(validApiKey ? { apiKey: draft.embeddingApiKey.trim() } : {}),
               },
         })
       }
