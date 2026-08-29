@@ -80,6 +80,23 @@ function context(locale?: { getSnapshot(): { active: 'zh' | 'en'; locales: reado
   }
 }
 
+function receiverSensitiveStore<T>(snapshot: T) {
+  let reads = 0
+  const store = {
+    get reads(): number { return reads },
+    getSnapshot(): T {
+      if (this !== store) throw new Error('store receiver was lost')
+      reads += 1
+      return snapshot
+    },
+    subscribe(_listener?: () => void): () => void {
+      if (this !== store) throw new Error('store receiver was lost')
+      return () => {}
+    },
+  }
+  return store
+}
+
 describe('Mnemon sidebar workspace', () => {
   beforeEach(() => { renderShell() })
   afterEach(() => {
@@ -90,6 +107,20 @@ describe('Mnemon sidebar workspace', () => {
     document.documentElement.removeAttribute('data-dsh-ssh-active')
     document.body.replaceChildren()
     vi.restoreAllMocks()
+  })
+
+  it('keeps receiver-sensitive DSH 0.1.2 list stores bound', async () => {
+    const ctx = context()
+    const sessions = receiverSensitiveStore(ctx.sessions.list.getSnapshot())
+    const workspaces = receiverSensitiveStore(ctx.workspaces.list.getSnapshot())
+    ctx.sessions.list = sessions
+    ctx.workspaces.list = workspaces
+
+    currentDispose = mountMnemonWorkspace(ctx as never, {} as never, key => String(key))
+
+    await waitFor(() => expect(document.querySelector('[data-testid="mnemon-panel-content"]')).not.toBeNull())
+    expect(sessions.reads).toBeGreaterThan(0)
+    expect(workspaces.reads).toBeGreaterThan(0)
   })
 
   it('mounts after the official panel family and toggles the center workspace', async () => {
