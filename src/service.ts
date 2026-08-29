@@ -555,6 +555,10 @@ export class MnemonService {
     // legacy alias kept for older binaries.
     const available = output?.embedding_available ?? output?.ollama_available
     const model = text(output?.model)?.trim()
+    // Mnemon ≥ 0.3.x may report the endpoint protocol it resolved; older binaries
+    // omit the field, so a missing or malformed value is dropped instead of
+    // failing the whole status probe.
+    const protocol = text(output?.protocol)?.trim()
     const totalInsights = number(output?.total_insights)
     const embedded = number(output?.embedded)
     const coverage = text(output?.coverage)?.trim()
@@ -565,7 +569,8 @@ export class MnemonService {
       || coverage === undefined || !/^(?:100|\d{1,2})%$/u.test(coverage)) {
       throw new Error('mnemon embed --status returned an invalid response')
     }
-    return { available, model, totalInsights: totalInsights!, embedded: embedded!, coverage }
+    const validProtocol = protocol !== undefined && protocol.length <= 32 && !/[\u0000-\u001f\u007f]/u.test(protocol)
+    return { available, model, totalInsights: totalInsights!, embedded: embedded!, coverage, ...(validProtocol ? { protocol } : {}) }
   }
 
   async status(signal?: AbortSignal): Promise<StatusView> {

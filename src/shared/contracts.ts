@@ -260,6 +260,8 @@ export interface ResolvedConfig {
 export interface MnemonEmbeddingStatus {
   available: boolean
   model: string
+  /** Protocol Mnemon resolved for the embedding endpoint; omitted when the CLI does not report one. */
+  protocol?: string
   totalInsights: number
   embedded: number
   coverage: string

@@ -605,18 +605,34 @@ function EmbeddingSettingsSection(props: {
         ? props.t('config.embeddingStatusFailed', { error: props.error ?? '' })
         : props.state === 'ready' && props.status !== null
           ? props.status.available
-            ? props.t('config.embeddingStatusAvailable', {
-                model: props.status.model,
-                embedded: props.status.embedded,
-                total: props.status.totalInsights,
-                coverage: props.status.coverage,
-              })
-            : props.t('config.embeddingStatusUnavailable', {
-                model: props.status.model,
-                embedded: props.status.embedded,
-                total: props.status.totalInsights,
-                coverage: props.status.coverage,
-              })
+            ? props.status.protocol === undefined
+              ? props.t('config.embeddingStatusAvailable', {
+                  model: props.status.model,
+                  embedded: props.status.embedded,
+                  total: props.status.totalInsights,
+                  coverage: props.status.coverage,
+                })
+              : props.t('config.embeddingStatusAvailableWithProtocol', {
+                  model: props.status.model,
+                  protocol: props.status.protocol,
+                  embedded: props.status.embedded,
+                  total: props.status.totalInsights,
+                  coverage: props.status.coverage,
+                })
+            : props.status.protocol === undefined
+              ? props.t('config.embeddingStatusUnavailable', {
+                  model: props.status.model,
+                  embedded: props.status.embedded,
+                  total: props.status.totalInsights,
+                  coverage: props.status.coverage,
+                })
+              : props.t('config.embeddingStatusUnavailableWithProtocol', {
+                  model: props.status.model,
+                  protocol: props.status.protocol,
+                  embedded: props.status.embedded,
+                  total: props.status.totalInsights,
+                  coverage: props.status.coverage,
+                })
           : props.state === 'unavailable'
             ? props.t('config.embeddingTestUnavailable')
             : props.t('config.embeddingNotTested')
