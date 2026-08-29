@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import {
   DEFAULT_EMBEDDING_ENDPOINT,
   DEFAULT_EMBEDDING_MODEL,
+  DEFAULT_EMBEDDING_PROTOCOL,
+  MNEMON_EMBEDDING_PROTOCOLS,
   type ClientConnectionHandle,
   type ClientSettingsScope,
   type ClientSettingsSnapshot,
@@ -34,7 +36,7 @@ export interface MnemonSettingsCardProps {
 }
 
 type CoreField = 'displayMode' | 'storageScope' | 'runtimeUserScope' | 'dataDir'
-type EmbeddingField = 'embeddingEnabled' | 'embeddingEndpoint' | 'embeddingModel'
+type EmbeddingField = 'embeddingEnabled' | 'embeddingEndpoint' | 'embeddingModel' | 'embeddingApiKey' | 'embeddingProtocol'
 type TaskAgentField = 'taskAgentModelMode' | 'taskAgentProvider' | 'taskAgentModel'
 type InteractionField = 'turnBar' | 'saveAction'
 type TopologyField = `memoryTopology.${string}`
@@ -48,13 +50,15 @@ interface Draft extends Record<InteractionField, boolean> {
   embeddingEnabled: boolean
   embeddingEndpoint: string
   embeddingModel: string
+  embeddingApiKey: string
+  embeddingProtocol: string
   taskAgentModelMode: 'inherit' | 'fixed'
   taskAgentProvider: string
   taskAgentModel: string
 }
 
 const CORE_FIELDS: CoreField[] = ['displayMode', 'storageScope', 'runtimeUserScope', 'dataDir']
-const EMBEDDING_FIELDS: EmbeddingField[] = ['embeddingEnabled', 'embeddingEndpoint', 'embeddingModel']
+const EMBEDDING_FIELDS: EmbeddingField[] = ['embeddingEnabled', 'embeddingEndpoint', 'embeddingModel', 'embeddingApiKey', 'embeddingProtocol']
 const INTERACTION_FIELDS: InteractionField[] = ['turnBar', 'saveAction']
 const TASK_AGENT_FIELDS: TaskAgentField[] = ['taskAgentModelMode', 'taskAgentProvider', 'taskAgentModel']
 function record(value: unknown): Record<string, unknown> {
@@ -79,6 +83,8 @@ function coreDraft(value: Config | undefined): Pick<Draft, CoreField | Embedding
     embeddingEnabled: resolved.embedding?.enabled === true,
     embeddingEndpoint: resolved.embedding?.endpoint?.trim() || DEFAULT_EMBEDDING_ENDPOINT,
     embeddingModel: resolved.embedding?.model?.trim() || DEFAULT_EMBEDDING_MODEL,
+    embeddingApiKey: resolved.embedding?.apiKey?.trim() ?? '',
+    embeddingProtocol: resolved.embedding?.protocol ?? DEFAULT_EMBEDDING_PROTOCOL,
     taskAgentModelMode: resolved.taskAgentModel?.mode === 'fixed' ? 'fixed' : 'inherit',
     taskAgentProvider: resolved.taskAgentModel?.provider?.trim() ?? '',
     taskAgentModel: resolved.taskAgentModel?.model?.trim() ?? '',
@@ -101,6 +107,11 @@ function validEmbeddingEndpoint(value: string): boolean {
 function validEmbeddingModel(value: string): boolean {
   const model = value.trim()
   return model.length > 0 && model.length <= 200 && !/[\u0000-\u001f\u007f]/u.test(model)
+}
+
+function validEmbeddingApiKey(value: string): boolean {
+  const key = value.trim()
+  return key.length <= 2048 && !/[\u0000-\u001f\u007f]/u.test(key)
 }
 
 function interactionDraft(value: InteractionConfig | undefined): Pick<Draft, InteractionField> {
@@ -141,6 +152,8 @@ function validation(t: MnemonTranslate, draft: Draft): string | null {
   }
   if (draft.embeddingEnabled && !validEmbeddingEndpoint(draft.embeddingEndpoint)) return t('config.embeddingEndpointInvalid')
   if (draft.embeddingEnabled && !validEmbeddingModel(draft.embeddingModel)) return t('config.embeddingModelInvalid')
+  if (draft.embeddingEnabled && !validEmbeddingApiKey(draft.embeddingApiKey)) return t('config.embeddingApiKeyInvalid')
+  if (draft.embeddingEnabled && !MNEMON_EMBEDDING_PROTOCOLS.includes(draft.embeddingProtocol as typeof MNEMON_EMBEDDING_PROTOCOLS[number])) return t('config.embeddingProtocolInvalid')
   if (draft.taskAgentModelMode === 'fixed' && (draft.taskAgentProvider.trim() === '' || draft.taskAgentModel.trim() === '')) return t('config.taskAgentRouteRequired')
   return null
 }
@@ -357,6 +370,8 @@ export function MnemonSettingsCard({ scope, interactionScope: suppliedInteractio
       if (embeddingChanged) {
         const validEndpoint = validEmbeddingEndpoint(draft.embeddingEndpoint)
         const validModel = validEmbeddingModel(draft.embeddingModel)
+        const validApiKey = validEmbeddingApiKey(draft.embeddingApiKey)
+        const validProtocol = MNEMON_EMBEDDING_PROTOCOLS.includes(draft.embeddingProtocol as typeof MNEMON_EMBEDDING_PROTOCOLS[number])
         coreOps.push({
           op: 'set',
           path: ['embedding'],
@@ -365,11 +380,15 @@ export function MnemonSettingsCard({ scope, interactionScope: suppliedInteractio
                 enabled: true,
                 endpoint: draft.embeddingEndpoint.trim().replace(/\/+$/u, ''),
                 model: draft.embeddingModel.trim(),
+                protocol: draft.embeddingProtocol,
+                apiKey: draft.embeddingApiKey.trim(),
               }
             : {
                 enabled: false,
                 ...(validEndpoint ? { endpoint: draft.embeddingEndpoint.trim().replace(/\/+$/u, '') } : {}),
                 ...(validModel ? { model: draft.embeddingModel.trim() } : {}),
+                ...(validProtocol ? { protocol: draft.embeddingProtocol } : {}),
+                ...(validApiKey ? { apiKey: draft.embeddingApiKey.trim() } : {}),
               },
         })
       }
@@ -586,18 +605,34 @@ function EmbeddingSettingsSection(props: {
         ? props.t('config.embeddingStatusFailed', { error: props.error ?? '' })
         : props.state === 'ready' && props.status !== null
           ? props.status.available
-            ? props.t('config.embeddingStatusAvailable', {
-                model: props.status.model,
-                embedded: props.status.embedded,
-                total: props.status.totalInsights,
-                coverage: props.status.coverage,
-              })
-            : props.t('config.embeddingStatusUnavailable', {
-                model: props.status.model,
-                embedded: props.status.embedded,
-                total: props.status.totalInsights,
-                coverage: props.status.coverage,
-              })
+            ? props.status.protocol === undefined
+              ? props.t('config.embeddingStatusAvailable', {
+                  model: props.status.model,
+                  embedded: props.status.embedded,
+                  total: props.status.totalInsights,
+                  coverage: props.status.coverage,
+                })
+              : props.t('config.embeddingStatusAvailableWithProtocol', {
+                  model: props.status.model,
+                  protocol: props.status.protocol,
+                  embedded: props.status.embedded,
+                  total: props.status.totalInsights,
+                  coverage: props.status.coverage,
+                })
+            : props.status.protocol === undefined
+              ? props.t('config.embeddingStatusUnavailable', {
+                  model: props.status.model,
+                  embedded: props.status.embedded,
+                  total: props.status.totalInsights,
+                  coverage: props.status.coverage,
+                })
+              : props.t('config.embeddingStatusUnavailableWithProtocol', {
+                  model: props.status.model,
+                  protocol: props.status.protocol,
+                  embedded: props.status.embedded,
+                  total: props.status.totalInsights,
+                  coverage: props.status.coverage,
+                })
           : props.state === 'unavailable'
             ? props.t('config.embeddingTestUnavailable')
             : props.t('config.embeddingNotTested')
@@ -645,6 +680,35 @@ function EmbeddingSettingsSection(props: {
           autoCorrect="off"
           placeholder={DEFAULT_EMBEDDING_MODEL}
           onChange={event => props.onEdit('embeddingModel', event.target.value)}
+        />
+      </label>
+      <label>
+        {props.t('config.embeddingProtocol')}
+        <select
+          aria-label={props.t('config.embeddingProtocol')}
+          value={props.draft.embeddingProtocol}
+          disabled={props.disabled || !props.draft.embeddingEnabled}
+          onChange={event => props.onEdit('embeddingProtocol', event.target.value)}
+        >
+          <option value="auto">{props.t('config.embeddingProtocolAuto')}</option>
+          <option value="ollama">{props.t('config.embeddingProtocolOllama')}</option>
+          <option value="openai">{props.t('config.embeddingProtocolOpenai')}</option>
+        </select>
+      </label>
+      <label>
+        {props.t('config.embeddingApiKey')}
+        <input
+          type="password"
+          aria-label={props.t('config.embeddingApiKey')}
+          aria-invalid={props.draft.embeddingEnabled && !validEmbeddingApiKey(props.draft.embeddingApiKey)}
+          value={props.draft.embeddingApiKey}
+          disabled={props.disabled || !props.draft.embeddingEnabled}
+          autoComplete="off"
+          spellCheck={false}
+          autoCapitalize="none"
+          autoCorrect="off"
+          placeholder="sk-…"
+          onChange={event => props.onEdit('embeddingApiKey', event.target.value)}
         />
       </label>
     </div>

@@ -17,6 +17,13 @@ export const MNEMON_SETTINGS_NAMESPACE = 'mnemon'
 export const MNEMON_UI_SETTINGS_NAMESPACE = 'mnemon-ui'
 export const DEFAULT_EMBEDDING_ENDPOINT = 'http://localhost:11434'
 export const DEFAULT_EMBEDDING_MODEL = 'nomic-embed-text'
+export const EMBEDDING_PROTOCOL_AUTO = 'auto'
+export const EMBEDDING_PROTOCOL_OLLAMA = 'ollama'
+export const EMBEDDING_PROTOCOL_OPENAI = 'openai'
+/** Default protocol defers to Mnemon's /v1 auto-detection. */
+export const DEFAULT_EMBEDDING_PROTOCOL = EMBEDDING_PROTOCOL_AUTO
+/** Wire protocols accepted by the embedding protocol override; single source for schema, resolver, and UI validation. */
+export const MNEMON_EMBEDDING_PROTOCOLS = [EMBEDDING_PROTOCOL_AUTO, EMBEDDING_PROTOCOL_OLLAMA, EMBEDDING_PROTOCOL_OPENAI] as const
 
 export type JsonPrimitive = string | number | boolean | null
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue }
@@ -161,17 +168,25 @@ export interface Config {
   taskAgentModel?: TaskAgentModelConfig
 }
 
+export type MnemonEmbeddingProtocol = (typeof MNEMON_EMBEDDING_PROTOCOLS)[number]
+
 export interface MnemonEmbeddingConfig {
   /** When false or omitted, Mnemon keeps its inherited environment and built-in defaults. */
   enabled?: boolean
   endpoint?: string
   model?: string
+  /** Optional Bearer token forwarded as MNEMON_EMBED_API_KEY for OpenAI-compatible endpoints. */
+  apiKey?: string
+  /** Explicit wire-protocol override; 'auto' keeps Mnemon's /v1 auto-detection. */
+  protocol?: MnemonEmbeddingProtocol
 }
 
 export interface ResolvedMnemonEmbeddingConfig {
   enabled: boolean
   endpoint: string
   model: string
+  apiKey: string
+  protocol: MnemonEmbeddingProtocol
 }
 
 export interface TaskAgentModelConfig {
@@ -252,6 +267,8 @@ export interface ResolvedConfig {
 export interface MnemonEmbeddingStatus {
   available: boolean
   model: string
+  /** Protocol Mnemon resolved for the embedding endpoint; omitted when the CLI does not report one. */
+  protocol?: string
   totalInsights: number
   embedded: number
   coverage: string

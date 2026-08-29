@@ -34,12 +34,19 @@ describe('MnemonSettingsCard', () => {
     render(<MnemonSettingsCard scope={scope} />)
 
     const managed = screen.getByRole('checkbox', { name: '由 DSH 管理嵌入配置' })
-    const endpoint = screen.getByRole('textbox', { name: 'Ollama Endpoint' }) as HTMLInputElement
+    const endpoint = screen.getByRole('textbox', { name: '嵌入 Endpoint' }) as HTMLInputElement
     const model = screen.getByRole('textbox', { name: '嵌入模型' }) as HTMLInputElement
+    const apiKey = screen.getByLabelText('API Key（可选，OpenAI 兼容服务）') as HTMLInputElement
+    const protocol = screen.getByRole('combobox', { name: '协议' }) as HTMLSelectElement
     expect((managed as HTMLInputElement).checked).toBe(false)
     expect(endpoint.value).toBe('http://localhost:11434')
     expect(model.value).toBe('nomic-embed-text')
+    expect(apiKey.value).toBe('')
+    expect(apiKey.type).toBe('password')
+    expect(protocol.value).toBe('auto')
     expect(endpoint.disabled).toBe(true)
+    expect(apiKey.disabled).toBe(true)
+    expect(protocol.disabled).toBe(true)
 
     fireEvent.click(managed)
     fireEvent.change(endpoint, { target: { value: 'ftp://invalid.example' } })
@@ -49,14 +56,16 @@ describe('MnemonSettingsCard', () => {
     fireEvent.change(endpoint, { target: { value: 'http://127.0.0.1:11434?' } })
     expect((screen.getByRole('button', { name: '保存' }) as HTMLButtonElement).disabled).toBe(true)
 
-    fireEvent.change(endpoint, { target: { value: ' http://127.0.0.1:11434/// ' } })
+    fireEvent.change(endpoint, { target: { value: ' http://127.0.0.1:8080/api/// ' } })
     fireEvent.change(model, { target: { value: ' qwen3-embedding:0.6b ' } })
+    fireEvent.change(apiKey, { target: { value: '  sk-secret  ' } })
+    fireEvent.change(protocol, { target: { value: 'openai' } })
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => expect(mutate).toHaveBeenCalledWith([{
       op: 'set',
       path: ['embedding'],
-      value: { enabled: true, endpoint: 'http://127.0.0.1:11434', model: 'qwen3-embedding:0.6b' },
+      value: { enabled: true, endpoint: 'http://127.0.0.1:8080/api', model: 'qwen3-embedding:0.6b', apiKey: 'sk-secret', protocol: 'openai' },
     }]))
   })
 
@@ -78,14 +87,14 @@ describe('MnemonSettingsCard', () => {
     } satisfies ClientSettingsScope<Config> & { snapshot: typeof snapshot }
 
     render(<MnemonSettingsCard scope={scope} />)
-    fireEvent.change(screen.getByRole('textbox', { name: 'Ollama Endpoint' }), { target: { value: 'ftp://invalid.example' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '嵌入 Endpoint' }), { target: { value: 'ftp://invalid.example' } })
     fireEvent.click(screen.getByRole('checkbox', { name: '由 DSH 管理嵌入配置' }))
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => expect(mutate).toHaveBeenCalledWith([{
       op: 'set',
       path: ['embedding'],
-      value: { enabled: false, model: 'qwen3-embedding:0.6b' },
+      value: { enabled: false, model: 'qwen3-embedding:0.6b', apiKey: '', protocol: 'auto' },
     }]))
   })
 
@@ -118,7 +127,7 @@ describe('MnemonSettingsCard', () => {
     render(<MnemonSettingsCard scope={scope} connection={{ rpc: { call } } as ClientConnectionHandle} />)
     fireEvent.click(screen.getByRole('button', { name: '测试状态' }))
 
-    expect(await screen.findByText('Ollama 可用 · qwen3-embedding:0.6b · 已嵌入 6/8（75%）')).toBeTruthy()
+    expect(await screen.findByText('嵌入服务可用 · qwen3-embedding:0.6b · 已嵌入 6/8（75%）')).toBeTruthy()
     expect(call).toHaveBeenCalledWith('/dsh-mnemon-read', 'embedding-status', {})
   })
 

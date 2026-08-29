@@ -233,6 +233,17 @@ describe('MnemonService', () => {
           total_insights: 8,
           embedded: 6,
           coverage: '75%',
+          embedding_available: true,
+          protocol: 'openai',
+          model: 'qwen3-embedding:0.6b',
+        }),
+        stderr: '', exitCode: 0,
+      })
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify({
+          total_insights: 8,
+          embedded: 6,
+          coverage: '75%',
           ollama_available: true,
           model: 'qwen3-embedding:0.6b',
         }),
@@ -264,16 +275,28 @@ describe('MnemonService', () => {
     const runner = createRunner(config, process)
     const service = new MnemonService(runner, config, new MemoryBodyRegistry(runner, true))
 
-    await expect(service.embeddingStatus()).resolves.toEqual({
+    // Mnemon ≥ 0.3.x reports `embedding_available` plus the resolved protocol.
+    const expected = {
+      available: true,
+      model: 'qwen3-embedding:0.6b',
+      protocol: 'openai',
+      totalInsights: 8,
+      embedded: 6,
+      coverage: '75%',
+    }
+    // Legacy output carries no protocol, so the field stays absent.
+    const legacyExpected = {
       available: true,
       model: 'qwen3-embedding:0.6b',
       totalInsights: 8,
       embedded: 6,
       coverage: '75%',
-    })
+    }
+    await expect(service.embeddingStatus()).resolves.toEqual(expected)
     expect(process).toHaveBeenNthCalledWith(1, '/fake/mnemon', [
       '--data-dir', dataDir, '--store', 'work', 'embed', '--status',
     ], expect.anything())
+    await expect(service.embeddingStatus()).resolves.toEqual(legacyExpected)
     await expect(service.embeddingStatus()).rejects.toThrow('invalid response')
     await expect(service.embeddingStatus()).rejects.toThrow('invalid response')
     await expect(service.embeddingStatus()).rejects.toThrow('invalid response')
