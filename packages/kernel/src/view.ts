@@ -266,6 +266,29 @@ export class MemoryTurnViewManager {
     return [...this.turns.values()].findLast(turn => turn.scope.agentId === id)
   }
 
+  /**
+   * Latest reconciled MemoryTurnView owned by an agent, even after its turn
+   * ended. Used by subagents that outlive the parent turn: the parent session's
+   * pin is released on turn end, but recall authority for that same agent scope
+   * remains valid on its most recently published view. Returns undefined when
+   * the agent never reconciled a view.
+   */
+  lastViewForAgent(agentId: string): MemoryTurnView | undefined {
+    const id = text(agentId, 'memory agent id', 300)
+    let match: MemoryTurnView | undefined
+    for (const [key, view] of this.currentByScope) {
+      let owner: string | undefined
+      try {
+        owner = (JSON.parse(key) as { agentId?: unknown }).agentId as string | undefined
+      } catch {
+        continue
+      }
+      if (owner !== id) continue
+      if (match === undefined || view.createdAt > match.createdAt) match = view
+    }
+    return match
+  }
+
   endTurn(turnId: string): boolean {
     const deleted = this.turns.delete(turnId)
     if (deleted) this.collect()

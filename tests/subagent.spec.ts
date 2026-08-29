@@ -542,6 +542,7 @@ describe('Mnemon memory subagent coordinator', () => {
     const memoryService = service()
     const memoryViews = {
       activeTurn: vi.fn(() => undefined as { turnId: string; viewId: string } | undefined),
+      lastViewForAgent: vi.fn(() => undefined),
       sourceState: vi.fn(() => ({ memoryBodyIds: ['project'] })),
     }
     const source = { forAgent: vi.fn(() => ({ service: memoryService, runtimeMemory: {}, documents: {}, memoryViews })) }
@@ -1546,6 +1547,55 @@ describe('Mnemon root/child tool split', () => {
     expect(registered.find(tool => tool.name === 'mnemon_memory_bodies')!.description).toContain('Never call it to route Recall')
     expect(hotMemory.description).toContain('answering a read question must stay read-only')
     expect(hotMemory.description).toContain('unless the user explicitly asks to save that exact evidence')
+  })
+
+  it('falls back to the owner latest view when the parent turn already ended', async () => {
+    const host = subagents(undefined)
+    const memoryService = service()
+    vi.mocked(memoryService.search).mockResolvedValueOnce({
+      query: 'stale parent query',
+      mode: 'smart',
+      results: [{ id: 'stale-1', content: 'Stale fact', relevanceTier: 'high', memoryBodyId: 'project' }],
+    } as never)
+    const memoryViews = {
+      activeTurn: vi.fn(() => undefined),
+      lastViewForAgent: vi.fn(() => ({ id: 'view-stale', createdAt: '2026-08-29T00:00:00.000Z' })),
+      sourceState: vi.fn(() => ({ memoryBodyIds: ['project'] })),
+    }
+    const source = { forAgent: vi.fn(() => ({ service: memoryService, runtimeMemory: {}, documents: {}, memoryViews })) }
+    const coordinator = new MnemonSubagentCoordinator(host.value, source as never, undefined, toolRegistry().value)
+    const child = parent('subagent')
+    child.session.header!.parentSession = 'root'
+
+    const result = await coordinator.recall(child, { query: 'stale parent query' }, new AbortController().signal, { requirePinnedView: true })
+
+    expect(memoryViews.activeTurn).toHaveBeenCalledWith('root')
+    expect(memoryViews.lastViewForAgent).toHaveBeenCalledWith('root')
+    expect(memoryService.search).toHaveBeenCalledWith(
+      expect.objectContaining({ query: 'stale parent query', memoryBodyIds: ['project'] }),
+      expect.anything(),
+    )
+    expect(result.results).toEqual([{ id: 'stale-1', content: 'Stale fact', memoryBodyId: 'project' }])
+  })
+
+  it('throws when the owner has neither a pinned turn nor a latest view', async () => {
+    const host = subagents(undefined)
+    const memoryService = service()
+    const memoryViews = {
+      activeTurn: vi.fn(() => undefined),
+      lastViewForAgent: vi.fn(() => undefined),
+      sourceState: vi.fn(() => ({ memoryBodyIds: ['project'] })),
+    }
+    const source = { forAgent: vi.fn(() => ({ service: memoryService, runtimeMemory: {}, documents: {}, memoryViews })) }
+    const coordinator = new MnemonSubagentCoordinator(host.value, source as never, undefined, toolRegistry().value)
+    const child = parent('subagent')
+    child.session.header!.parentSession = 'root'
+
+    await expect(
+      coordinator.recall(child, { query: 'orphan query' }, new AbortController().signal, { requirePinnedView: true }),
+    ).rejects.toThrow('Recall requires the MemorySource generation pinned to the current turn')
+    expect(memoryViews.lastViewForAgent).toHaveBeenCalledWith('root')
+    expect(memoryService.search).not.toHaveBeenCalled()
   })
 
   it('projects status as a bounded health summary without control-plane paths or detailed statistics', async () => {
