@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import {
   DEFAULT_EMBEDDING_ENDPOINT,
   DEFAULT_EMBEDDING_MODEL,
+  DEFAULT_EMBEDDING_PROTOCOL,
+  MNEMON_EMBEDDING_PROTOCOLS,
   type ClientConnectionHandle,
   type ClientSettingsScope,
   type ClientSettingsSnapshot,
@@ -82,7 +84,7 @@ function coreDraft(value: Config | undefined): Pick<Draft, CoreField | Embedding
     embeddingEndpoint: resolved.embedding?.endpoint?.trim() || DEFAULT_EMBEDDING_ENDPOINT,
     embeddingModel: resolved.embedding?.model?.trim() || DEFAULT_EMBEDDING_MODEL,
     embeddingApiKey: resolved.embedding?.apiKey?.trim() ?? '',
-    embeddingProtocol: resolved.embedding?.protocol ?? 'auto',
+    embeddingProtocol: resolved.embedding?.protocol ?? DEFAULT_EMBEDDING_PROTOCOL,
     taskAgentModelMode: resolved.taskAgentModel?.mode === 'fixed' ? 'fixed' : 'inherit',
     taskAgentProvider: resolved.taskAgentModel?.provider?.trim() ?? '',
     taskAgentModel: resolved.taskAgentModel?.model?.trim() ?? '',
@@ -111,8 +113,6 @@ function validEmbeddingApiKey(value: string): boolean {
   const key = value.trim()
   return key.length <= 2048 && !/[\u0000-\u001f\u007f]/u.test(key)
 }
-
-const EMBEDDING_PROTOCOLS = ['auto', 'ollama', 'openai'] as const
 
 function interactionDraft(value: InteractionConfig | undefined): Pick<Draft, InteractionField> {
   return {
@@ -153,7 +153,7 @@ function validation(t: MnemonTranslate, draft: Draft): string | null {
   if (draft.embeddingEnabled && !validEmbeddingEndpoint(draft.embeddingEndpoint)) return t('config.embeddingEndpointInvalid')
   if (draft.embeddingEnabled && !validEmbeddingModel(draft.embeddingModel)) return t('config.embeddingModelInvalid')
   if (draft.embeddingEnabled && !validEmbeddingApiKey(draft.embeddingApiKey)) return t('config.embeddingApiKeyInvalid')
-  if (draft.embeddingEnabled && !EMBEDDING_PROTOCOLS.includes(draft.embeddingProtocol as typeof EMBEDDING_PROTOCOLS[number])) return t('config.embeddingProtocolInvalid')
+  if (draft.embeddingEnabled && !MNEMON_EMBEDDING_PROTOCOLS.includes(draft.embeddingProtocol as typeof MNEMON_EMBEDDING_PROTOCOLS[number])) return t('config.embeddingProtocolInvalid')
   if (draft.taskAgentModelMode === 'fixed' && (draft.taskAgentProvider.trim() === '' || draft.taskAgentModel.trim() === '')) return t('config.taskAgentRouteRequired')
   return null
 }
@@ -371,7 +371,7 @@ export function MnemonSettingsCard({ scope, interactionScope: suppliedInteractio
         const validEndpoint = validEmbeddingEndpoint(draft.embeddingEndpoint)
         const validModel = validEmbeddingModel(draft.embeddingModel)
         const validApiKey = validEmbeddingApiKey(draft.embeddingApiKey)
-        const validProtocol = EMBEDDING_PROTOCOLS.includes(draft.embeddingProtocol as typeof EMBEDDING_PROTOCOLS[number])
+        const validProtocol = MNEMON_EMBEDDING_PROTOCOLS.includes(draft.embeddingProtocol as typeof MNEMON_EMBEDDING_PROTOCOLS[number])
         coreOps.push({
           op: 'set',
           path: ['embedding'],

@@ -4,6 +4,7 @@ import {
   DEFAULT_IDLE_REVIEW_MS,
   DEFAULT_EMBEDDING_ENDPOINT,
   DEFAULT_EMBEDDING_MODEL,
+  DEFAULT_EMBEDDING_PROTOCOL,
   DEFAULT_RECALL_CANDIDATE_MULTIPLIER,
   DEFAULT_RECALL_HIGH_SCORE_THRESHOLD,
   DEFAULT_RECALL_LIMIT,
@@ -17,6 +18,7 @@ import {
   DEFAULT_TIMEOUT_MS,
   MAX_RUNTIME_MAINTENANCE_MAX_TOKENS,
   MAX_RUNTIME_MEMORY_LIMIT_BYTES,
+  MNEMON_EMBEDDING_PROTOCOLS,
 } from './config-values.ts'
 import type {
   Config as SharedConfig,
@@ -40,6 +42,7 @@ export {
   DEFAULT_IDLE_REVIEW_MS,
   DEFAULT_EMBEDDING_ENDPOINT,
   DEFAULT_EMBEDDING_MODEL,
+  DEFAULT_EMBEDDING_PROTOCOL,
   DEFAULT_RECALL_CANDIDATE_MULTIPLIER,
   DEFAULT_RECALL_HIGH_SCORE_THRESHOLD,
   DEFAULT_RECALL_LIMIT,
@@ -93,7 +96,7 @@ const MnemonEmbeddingSchema = z.object({
   endpoint: z.string().default(DEFAULT_EMBEDDING_ENDPOINT),
   model: z.string().default(DEFAULT_EMBEDDING_MODEL),
   apiKey: z.string().default(''),
-  protocol: z.union(['auto', 'ollama', 'openai'] as const).default('auto'),
+  protocol: z.union(MNEMON_EMBEDDING_PROTOCOLS).default(DEFAULT_EMBEDDING_PROTOCOL),
 })
 
 const RecallQualitySchema: z<RecallQualityConfig> = z.object({
@@ -154,7 +157,7 @@ export const Config: z<Config> = z.object({
     endpoint: DEFAULT_EMBEDDING_ENDPOINT,
     model: DEFAULT_EMBEDDING_MODEL,
     apiKey: '',
-    protocol: 'auto',
+    protocol: DEFAULT_EMBEDDING_PROTOCOL,
   }),
   memoryTopology: MemoryTopologySchema,
   recallQuality: RecallQualitySchema.default({
@@ -299,8 +302,8 @@ function resolveEmbedding(value: SharedConfig['embedding']): SharedResolvedConfi
   if (model.length > 200 || /[\u0000-\u001f\u007f]/u.test(model)) throw new Error('dsh-mnemon: embedding model must contain 1..200 characters without control characters')
   const apiKey = optionalText(value?.apiKey) ?? ''
   if (apiKey.length > 2048 || /[\u0000-\u001f\u007f]/u.test(apiKey)) throw new Error('dsh-mnemon: embedding API key must contain 0..2048 characters without control characters')
-  const protocol = value?.protocol ?? 'auto'
-  if (!['auto', 'ollama', 'openai'].includes(protocol)) throw new Error(`dsh-mnemon: unsupported embedding protocol: ${String(protocol)}`)
+  const protocol = value?.protocol ?? DEFAULT_EMBEDDING_PROTOCOL
+  if (!MNEMON_EMBEDDING_PROTOCOLS.includes(protocol)) throw new Error(`dsh-mnemon: unsupported embedding protocol: ${String(protocol)}`)
   return { enabled: value?.enabled === true, endpoint: normalizedEndpoint, model, apiKey, protocol }
 }
 
