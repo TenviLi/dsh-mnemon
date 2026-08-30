@@ -20,8 +20,8 @@ import { mutationResultCommitted, type EdgeType, type Insight, type MemoryBodyMe
 import { finalizeLlmPlacement, rulesOnlyPlacement, type PreparedMemoryPlacement } from './provider-placement.ts'
 import { MEMORY_PROVIDER_IDS } from './providers/catalog.ts'
 import type { MemoryBodyMetadataMaintenanceResult, MemoryBodyMetadataUpdate, MemoryPlacementDecision, SubagentCounters } from './shared/contracts.ts'
-import type { MemoryMigrationLineage } from '../packages/contracts/src/index.ts'
-import type { MnemonAgentRuntimeSource } from './live-runtime.ts'
+import type { MemoryMigrationLineage, MemoryTurnContext } from '../packages/contracts/src/index.ts'
+import type { MnemonAgentRuntimeSource, MnemonRuntimeGraph } from './live-runtime.ts'
 
 export type { SubagentCounters } from './shared/contracts.ts'
 
@@ -110,9 +110,10 @@ interface ToolReceiptRecovery {
 }
 
 interface RecallAuthority {
-  turnId: string
+  context: MemoryTurnContext
   viewId: string
   memoryBodyIds: string[]
+  service: MnemonService
 }
 
 interface RecallAttempt {
@@ -370,9 +371,16 @@ function insightDigest(result: Pick<Insight, 'content'>): string {
   return sha256(result.content.trim().replace(/\s+/gu, ' '))
 }
 
-function recallQueryDigest(query: string): string {
-  const lexical = (query.match(/[\p{L}\p{N}]+/gu) ?? []).join(' ').toLocaleLowerCase()
-  return sha256(lexical)
+function recallQueryDigest(request: SearchRequest): string {
+  const lexical = (request.query.match(/[\p{L}\p{N}]+/gu) ?? []).join(' ').toLocaleLowerCase()
+  return sha256(JSON.stringify({ query: lexical, memoryBodyIds: [...request.memoryBodyIds ?? []].sort() }))
+}
+
+/** A replay must still respect the current call's selected Source subset. */
+function replayEvidence(results: readonly Insight[], memoryBodyIds: readonly string[] | undefined): Insight[] {
+  return structuredClone(memoryBodyIds === undefined ? results : results.filter(result => (
+    result.memoryBodyId !== undefined && memoryBodyIds.includes(result.memoryBodyId)
+  ))) as Insight[]
 }
 
 /** Admit a small, deduplicated evidence envelope after Provider quality policy. */
@@ -920,7 +928,10 @@ export class MnemonSubagentCoordinator {
   private readonly counters: SubagentCounters = { recalls: 0, writes: 0, answers: 0, reviews: 0, placements: 0, migrations: 0, compactions: 0, documentArchives: 0, metadataMaintenances: 0, failures: 0 }
   private runtimeQueue: Promise<unknown> = Promise.resolve()
   private documentQueue: Promise<unknown> = Promise.resolve()
-  private readonly retrievalTurns = new Map<string, TurnRetrievalState>()
+  // A context is the immutable lifetime of one actual pin, not a reusable
+  // owner/session id (or even a turn number after clear/resume). Weak ownership
+  // also avoids evicting still-active budgets when many children run at once.
+  private readonly retrievalTurns = new WeakMap<MemoryTurnContext, TurnRetrievalState>()
 
   constructor(
     private readonly subagents: HostSubagentsService,
@@ -947,20 +958,22 @@ export class MnemonSubagentCoordinator {
     return this.documentsFor(parent).forAgent(parent).search(query, { includeArchived, ...(limit === undefined ? {} : { limit }) })
   }
 
-  /** Admit at most one model-facing Documents query for one root turn. */
+  /** Admit at most one model-facing Documents query for one executing turn. */
   claimDocumentSearch(parent: HostAgent): boolean {
     const authority = this.turnAuthority(parent, false)
     // Direct SDK/testing callers have no Host turn. Keep that compatibility
     // seam unmetered; every real model turn is pinned before Prompt assembly.
     if (authority === undefined) return true
-    const retrieval = this.turnRetrievalState(authority.turnId)
+    const retrieval = this.turnRetrievalState(authority.context)
     if (retrieval.documentSearchClaimed === true) return false
     retrieval.documentSearchClaimed = true
     return true
   }
 
   async recall(parent: HostAgent, request: SearchRequest, signal: AbortSignal, options: { requirePinnedView?: boolean } = {}): Promise<RecallResult> {
+    signal.throwIfAborted()
     const authority = this.recallAuthority(parent, options.requirePinnedView === true)
+    const service = authority?.service ?? this.serviceFor(parent)
     // Model-selected semantic filters are too brittle to be authoritative:
     // one wrong category can hide the exact evidence. The query and pinned
     // Source remain the complete model-facing routing contract.
@@ -971,15 +984,15 @@ export class MnemonSubagentCoordinator {
       ...(request.memoryBodyIds === undefined ? {} : { memoryBodyIds: request.memoryBodyIds }),
     }
     const scoped = this.scopeRecallWithAuthority(limited, authority)
-    const digest = authority === undefined ? undefined : recallQueryDigest(scoped.query)
-    const retrieval = authority === undefined ? undefined : this.turnRetrievalState(authority.turnId)
+    const digest = authority === undefined ? undefined : recallQueryDigest(scoped)
+    const retrieval = authority === undefined ? undefined : this.turnRetrievalState(authority.context)
     const repeated = digest === undefined ? undefined : retrieval?.recallAttempts.find(attempt => attempt.queryDigest === digest)
     if (repeated !== undefined) {
       const previous = repeated.result ?? await repeated.pending
       return {
         query: previous?.query ?? scoped.query,
         mode: previous?.mode ?? scoped.mode ?? 'smart',
-        results: structuredClone(previous?.results ?? []),
+        results: replayEvidence(previous?.results ?? [], scoped.memoryBodyIds),
         hint: retrieval?.recallAttempts.length === MODEL_RECALL_ATTEMPT_LIMIT
           ? 'This Recall query already ran. The Host replayed its admitted evidence without another Provider query. The turn Recall budget is closed; stop retrieval and answer from the evidence or state what remains unknown.'
           : 'This Recall query already ran. The Host replayed its admitted evidence without another Provider query. If this evidence is insufficient, use at most one materially different focused query; otherwise stop retrieval.',
@@ -991,7 +1004,7 @@ export class MnemonSubagentCoordinator {
       return {
         query: previous?.query ?? scoped.query,
         mode: previous?.mode ?? scoped.mode ?? 'smart',
-        results: structuredClone(previous?.results ?? []),
+        results: replayEvidence(previous?.results ?? [], scoped.memoryBodyIds),
         hint: 'The two-query turn Recall budget is exhausted. The Host replayed the latest admitted evidence without another Provider query; stop retrieval and answer from the evidence or state what remains unknown.',
       }
     }
@@ -1003,7 +1016,8 @@ export class MnemonSubagentCoordinator {
       // Distinct concurrent tool calls are serialized so the refinement can
       // exclude evidence admitted by the initial query and share one envelope.
       if (predecessor !== undefined) await predecessor
-      const result = await this.serviceFor(parent).search(scoped, signal)
+      signal.throwIfAborted()
+      const result = await service.search(scoped, signal)
       const priorAttempts = retrieval?.recallAttempts.slice(0, attemptIndex) ?? []
       const priorResults = priorAttempts.flatMap(entry => entry.result?.results ?? [])
       const priorContentCharacters = priorResults.reduce((total, insight) => total + insight.content.length, 0)
@@ -1069,7 +1083,7 @@ export class MnemonSubagentCoordinator {
     }
   }
 
-  /** Bind a model read to the Source state pinned by its root turn. */
+  /** Bind a model read to the Source state pinned by its own executing turn. */
   scopeRecallRequest(agent: HostAgent, request: SearchRequest, requirePinnedView = false): SearchRequest {
     const authority = this.recallAuthority(agent, requirePinnedView)
     return this.scopeRecallWithAuthority(request, authority)
@@ -1106,9 +1120,11 @@ export class MnemonSubagentCoordinator {
     signal: AbortSignal,
     options: { depth?: number; edge?: EdgeType; requirePinnedView?: boolean } = {},
   ): Promise<RecallResult> {
+    signal.throwIfAborted()
     const authority = this.recallAuthority(parent, options.requirePinnedView === true)
+    const service = authority?.service ?? this.serviceFor(parent)
     const selected = this.scopeRelatedWithAuthority(memoryBodyId, authority)
-    const retrieval = authority === undefined ? undefined : this.turnRetrievalState(authority.turnId)
+    const retrieval = authority === undefined ? undefined : this.turnRetrievalState(authority.context)
     const reference = `${selected ?? ''}/${id}`
     if (retrieval !== undefined && !retrieval.evidenceReferences.has(reference)) {
       return {
@@ -1129,7 +1145,7 @@ export class MnemonSubagentCoordinator {
       return {
         query: previous?.query ?? `related:${id}`,
         mode: previous?.mode ?? 'related',
-        results: structuredClone(previous?.results ?? []),
+        results: replayEvidence(previous?.results ?? [], selected === undefined ? undefined : [selected]),
         hint: retrieval.relatedDigest === digest
           ? 'This exact Related traversal already ran. The Host replayed its admitted evidence without another Provider query; stop retrieval and answer from it.'
           : 'Related traversal is complete for this turn. The Host replayed the admitted evidence; stop retrieval and answer from it.',
@@ -1137,7 +1153,7 @@ export class MnemonSubagentCoordinator {
     }
     if (retrieval !== undefined && digest !== undefined) retrieval.relatedDigest = digest
     const operation = (async (): Promise<RecallResult> => {
-      const results = await this.serviceFor(parent).related(id, options.depth, options.edge, signal, selected)
+      const results = await service.related(id, options.depth, options.edge, signal, selected)
       const admitted = boundedModelInsights(results, {
         resultLimit: 4,
         totalContentLimit: 4_000,
@@ -1818,45 +1834,36 @@ Completion protocol: call \`${resultToolName}\` exactly once with the final resu
 
   private recallAuthority(agent: HostAgent, required: boolean): RecallAuthority | undefined {
     const authority = this.turnAuthority(agent, required)
-    if (authority === undefined || !isAgentRuntimeSource(this.runtimeMemoryOrSource)) return undefined
-    const views = this.runtimeMemoryOrSource.forAgent(agent).memoryViews
-    const state = views.sourceState(authority.viewId, 'memory-spaces')
+    if (authority === undefined) return undefined
+    const { context, graph } = authority
+    const state = graph.memoryViews.sourceState(context.viewId, 'memory-spaces')
     const value = optionalObject(state)
     if (value === undefined || !Array.isArray(value.memoryBodyIds) || value.memoryBodyIds.some(id => typeof id !== 'string' || id.trim() === '')) {
-      throw new Error(`pinned MemorySource has invalid recall authority: ${authority.viewId}`)
+      throw new Error(`pinned MemorySource has invalid recall authority: ${context.viewId}`)
     }
     const memoryBodyIds = [...new Set(value.memoryBodyIds.map(id => String(id).trim()))]
-    if (memoryBodyIds.length === 0) throw new Error(`pinned MemorySource has no recall-authorized Memory Spaces: ${authority.viewId}`)
-    return { ...authority, memoryBodyIds }
+    if (memoryBodyIds.length === 0) throw new Error(`pinned MemorySource has no recall-authorized Memory Spaces: ${context.viewId}`)
+    return { context, viewId: context.viewId, memoryBodyIds, service: graph.service }
   }
 
-  private turnAuthority(agent: HostAgent, required: boolean): Pick<RecallAuthority, 'turnId' | 'viewId'> | undefined {
+  private turnAuthority(agent: HostAgent, required: boolean): { context: MemoryTurnContext; graph: MnemonRuntimeGraph } | undefined {
     if (!isAgentRuntimeSource(this.runtimeMemoryOrSource)) return undefined
-    const views = this.runtimeMemoryOrSource.forAgent(agent).memoryViews
-    const parentId = isSubagent(agent) ? agent.session.header?.parentSession?.trim() : undefined
-    const ownerId = parentId === undefined || parentId === '' ? agent.id : parentId
-    const pinned = views.activeTurn(ownerId)
-    if (pinned === undefined) {
-      if (required) throw new Error('Recall requires the MemorySource generation pinned to the current turn')
-      return undefined
-    }
-    return { turnId: pinned.turnId, viewId: pinned.viewId }
+    const graph = this.runtimeMemoryOrSource.forAgent(agent)
+    const context = graph.memoryViews.activeTurn(agent.id)
+    if (context !== undefined) return { context, graph }
+    if (required) throw new Error('Recall requires the MemorySource generation pinned to the current turn')
+    return undefined
   }
 
-  private turnRetrievalState(turnId: string): TurnRetrievalState {
-    const current = this.retrievalTurns.get(turnId)
+  private turnRetrievalState(context: MemoryTurnContext): TurnRetrievalState {
+    const current = this.retrievalTurns.get(context)
     if (current !== undefined) return current
-    while (this.retrievalTurns.size >= 128) {
-      const oldest = this.retrievalTurns.keys().next().value as string | undefined
-      if (oldest === undefined) break
-      this.retrievalTurns.delete(oldest)
-    }
     const created: TurnRetrievalState = {
       recallAttempts: [],
       evidenceDigests: new Set(),
       evidenceReferences: new Set(),
     }
-    this.retrievalTurns.set(turnId, created)
+    this.retrievalTurns.set(context, created)
     return created
   }
 

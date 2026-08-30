@@ -4,7 +4,7 @@
 
 `dsh-mnemon` 将长期记忆体接入 DeepSeek Harness，并补充运行时热记忆、项目档案、生命周期路由、独立任务 Agent、确定性控制层与 DSH 原生界面。第三层采用可替换 Provider：Mnemon Native 是官方优先、默认完整能力实现；8 种三方引擎通过显式适配器复用同一套记忆体工作流。
 
-三层现在由可组合内核表达为默认 Topology：`MemoryBoot` 装配受信任 contribution，每个 Layer 提供 eager 或 routed `MemorySource`，每个 root 回合固定轻量 `TurnView`，已提交 mutation 用 Receipt 推进下一回合。Layer、Adapter、Strategy 与 Guard 保留为控制面内部边界。普通安装仍得到完全相同的三层心智；扩展与逐层开关不要求复制一套 Host 或 WebUI。
+三层现在由可组合内核表达为默认 Topology：`MemoryBoot` 装配受信任 contribution，每个 Layer 提供 eager 或 routed `MemorySource`，每个执行中的 Agent 回合固定轻量 `TurnView`，子 Agent 独立保留其委托 View、不受父回合结束影响，已提交 mutation 用 Receipt 推进下一回合。Layer、Adapter、Strategy 与 Guard 保留为控制面内部边界。普通安装仍得到完全相同的三层心智；扩展与逐层开关不要求复制一套 Host 或 WebUI。
 
 它要解决的不是“保存更多文字”，而是让 Agent 在长期连续性、当前事实优先、上下文成本和可恢复写入之间取得平衡。
 

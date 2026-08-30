@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { renderContextSnapshot, renderPrompt, type PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
 import type { HostAgent, HostContextShape } from '../src/contracts.ts'
-import { registerAgentMemoryViewContext, registerAgentRuntimeMemoryContext, registerRuntimeMemoryContext, RUNTIME_MEMORY_CONTEXT_NAME, RUNTIME_MEMORY_PROTOCOL_SECTION_NAME } from '../src/guidance.ts'
+import { memoryPromptText, registerAgentMemoryViewContext, registerAgentRuntimeMemoryContext, registerRuntimeMemoryContext, RUNTIME_MEMORY_CONTEXT_NAME, RUNTIME_MEMORY_PROTOCOL_SECTION_NAME } from '../src/guidance.ts'
 import { RUNTIME_MEMORY_PROTOCOL, type RuntimeMemoryController } from '../src/runtime-memory.ts'
 import type { MemoryWake } from '../packages/contracts/src/index.ts'
 
@@ -77,15 +77,17 @@ describe('agent-scoped runtime memory context', () => {
     let wake: MemoryWake = { viewId: 'view-1', viewDigest: 'digest-1', text: 'Pinned {{model}} memory.', sections: [{ layerId: 'runtime', mode: 'eager', text: 'Pinned {{model}} memory.' }] }
 
     registerAgentMemoryViewContext(agent, () => wake)
-    const registeredContext = context.mock.calls[0]![0]
+    // The snapshot is no longer a shared runtime-context contribution; it is
+    // injected as this plugin's own message. Only the static protocol section
+    // is still registered here.
+    expect(context).not.toHaveBeenCalled()
     const registeredProtocol = section.mock.calls[0]![0]
-    expect(registeredContext?.text()).toBe('Pinned {{mnemon_runtime_memory_literal_open_braces}}model}} memory.')
     expect(registeredProtocol?.text()).toBe(RUNTIME_MEMORY_PROTOCOL)
-    wake = { viewId: 'view-1', viewDigest: 'digest-1', text: 'Same pinned memory.', sections: [{ layerId: 'runtime', mode: 'eager', text: 'Same pinned memory.' }] }
-    expect(registeredContext?.text()).toBe('Same pinned memory.')
     wake = { viewId: 'view-2', viewDigest: 'digest-2', text: 'Only routed memory.', sections: [{ layerId: 'documents', mode: 'routed', text: 'One active project Document.' }] }
     expect(registeredProtocol?.text()).toBe('')
-    expect(registeredContext?.text()).toBe('Only routed memory.')
+
+    // Interpolation is still neutralized as literal data, now on the injected text.
+    expect(memoryPromptText('Pinned {{model}} memory.')).toBe('Pinned {{mnemon_runtime_memory_literal_open_braces}}model}} memory.')
   })
 
   it('registers a same-named per-Agent runtime context that resolves the current workspace lazily', () => {

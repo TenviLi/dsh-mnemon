@@ -21,25 +21,32 @@ describe('Mnemon lifecycle with the real DSH SystemPrompt', () => {
       steer: vi.fn(),
       inject: vi.fn(),
     } satisfies HostAgent
+    const config = resolveConfig({ cliPath: '/fake/mnemon' })
+    const pinnedTurns = new Map<string, object>()
     const memoryViews = {
-      beginTurn: vi.fn(async (turnId: string, scope: object) => ({
-        turnId,
-        viewId: 'view-first-turn',
-        viewDigest: 'digest-first-turn',
-        scope,
-        startedAt: '2026-08-23T00:00:00.000Z',
-      })),
+      beginTurn: vi.fn(async (turnId: string, scope: object) => {
+        const context = {
+          turnId,
+          viewId: 'view-first-turn',
+          viewDigest: 'digest-first-turn',
+          scope,
+          startedAt: '2026-08-23T00:00:00.000Z',
+        }
+        pinnedTurns.set(turnId, context)
+        return context
+      }),
+      turn: vi.fn((turnId: string) => pinnedTurns.get(turnId)),
       wake: vi.fn(() => ({
         viewId: 'view-first-turn',
         viewDigest: 'digest-first-turn',
         text: 'First-turn Wake',
         sections: [{ layerId: 'runtime', mode: 'eager', text: 'First-turn Wake' }],
       })),
-      endTurn: vi.fn(() => true),
+      endTurn: vi.fn((turnId: string) => pinnedTurns.delete(turnId)),
       reconcile: vi.fn(async () => ({ id: 'view-next-turn' })),
     }
     const runtimeSource = {
-      forAgent: vi.fn(() => ({ memoryViews })),
+      forAgent: vi.fn(() => ({ config, memoryViews })),
       bindAgentRuntime: vi.fn(() => vi.fn()),
     }
     const coordinator = { snapshot: vi.fn(() => ({ recalls: 0, writes: 0, answers: 0, reviews: 0, failures: 0 })) } as unknown as MnemonSubagentCoordinator
@@ -47,7 +54,7 @@ describe('Mnemon lifecycle with the real DSH SystemPrompt', () => {
       agents: { get: (id: string) => id === agent.id ? agent : undefined, roots: () => [agent] },
       on: vi.fn(() => vi.fn()),
     } as unknown as HostContextShape
-    const lifecycle = new MnemonLifecycle(host, coordinator, resolveConfig({ cliPath: '/fake/mnemon' }), runtimeSource as never)
+    const lifecycle = new MnemonLifecycle(host, coordinator, config, runtimeSource as never)
     const stop = lifecycle.start()
 
     const assembly = await prompt.assemble({ agent, signal: new AbortController().signal } as never)
@@ -58,7 +65,9 @@ describe('Mnemon lifecycle with the real DSH SystemPrompt', () => {
       agentId: 'real-prompt-session',
     })
     expect(assembly.sections).toContainEqual({ name: 'mnemon:runtime-memory-protocol', text: RUNTIME_MEMORY_PROTOCOL })
-    expect(assembly.contexts).toContainEqual({ name: 'mnemon:runtime-memory', text: 'First-turn Wake' })
+    // The Wake no longer travels as a shared runtime-context contribution; it is
+    // appended as a dsh-mnemon message so it cannot invalidate other plugins' context.
+    expect(assembly.contexts).not.toContainEqual(expect.objectContaining({ name: 'mnemon:runtime-memory' }))
     expect(runtimeSource.bindAgentRuntime).toHaveBeenCalledOnce()
     stop()
     expect(memoryViews.endTurn).toHaveBeenCalledWith('real-prompt-session:1')

@@ -12,6 +12,8 @@ $DSH_HOME/settings.yaml
 
 The default is commonly `~/.dsh/settings.yaml`. All current settings are marked `live`; after Save, the Host initializes a candidate runtime graph and then switches to it atomically.
 
+Executing turns retain their pinned runtime. An already-dispatched child retains its delegated runtime until that activation is disposed, even if its parent has finished; later parent turns and newly delegated activations use the new generation. Saving settings does not silently expand an existing task's Recall authority.
+
 The Web settings page edits `storageScope`, the independent `runtimeUserScope`, `dataDir`, Mnemon Native's Ollama embedding override, one master switch for each of the three memory Layers, the background task Agent model route, and the Turn memory and Save-to-memory switches under `mnemon-ui`. Global and Workspace define the scope of the complete memory system; the USER.md profile may explicitly remain global while project memory follows that scope. Mnemon Native owns its Custom data location, embedding runtime, and ZIP backup/migration controls. Each external provider has a collapsible service configuration for reusable endpoints, credentials, or executables. Enabling or saving it discovers the provider's existing namespaces and maps them into Memory Spaces → Overview; disabling it removes those local mappings without deleting provider data. Other advanced settings must be changed directly in YAML.
 
 ## Complete Example

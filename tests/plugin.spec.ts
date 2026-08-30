@@ -96,7 +96,7 @@ describe('dsh-mnemon plugin composition', () => {
     const lockedDshVersions = [...lockfile.matchAll(/@deepseek-ai\/dsh(?:-[a-z0-9-]+)?@(\d+\.\d+\.\d+-rc\.\d+)/g)]
       .map(match => match[1])
 
-    expect(directDshDependencies).toHaveLength(10)
+    expect(directDshDependencies).toHaveLength(19)
     expect(new Set(directDshDependencies.map(([, version]) => version))).toEqual(new Set(['0.1.1-rc.2']))
     expect(manifest.engines.node).toBe('>=20')
     expect(manifest.peerDependencies['@deepseek-ai/dsh-client-ui-primitives']).toContain('^0.1.1-rc.1')
@@ -319,7 +319,7 @@ describe('dsh-mnemon plugin composition', () => {
       forAgent: vi.fn(() => controller),
     }
     const memoryViews = {
-      activeTurn: vi.fn(() => ({ turnId: 'root:documents', viewId: 'view-documents' })),
+      activeTurn: vi.fn().mockReturnValue({ turnId: 'root:documents', viewId: 'view-documents' }),
       sourceState: vi.fn(() => ({ memoryBodyIds: ['project'] })),
     }
     const runtime = {

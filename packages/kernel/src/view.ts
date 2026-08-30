@@ -146,6 +146,7 @@ export class MemoryTurnViewManager {
   private sourceGeneration = 0
   private readonly views = new Map<string, StoredMemoryTurnView>()
   private readonly turns = new Map<string, MemoryTurnContext>()
+  private readonly retainedViews = new Map<string, number>()
   private readonly pendingReceipts = new Map<string, MemoryReceipt>()
   private current: MemoryTurnView | undefined
   private readonly currentByScope = new Map<string, MemoryTurnView>()
@@ -246,6 +247,18 @@ export class MemoryTurnViewManager {
       return existing
     }
     const view = await this.reconcile(scope)
+    return this.pinTurn(id, scope, view.id)
+  }
+
+  /** Pin an already-authorized View without re-snapshotting a newer Source. */
+  pinTurn(turnId: string, scope: MemoryOperationScope, viewId: string): MemoryTurnContext {
+    const id = text(turnId, 'memory turn id', 300)
+    const view = this.requireStoredView(viewId).view
+    const existing = this.turns.get(id)
+    if (existing !== undefined) {
+      if (!sameScope(existing.scope, scope) || existing.viewId !== view.id) throw new Error(`memory turn authority changed while pinned: ${id}`)
+      return existing
+    }
     const context = deepFreeze({
       turnId: id,
       viewId: view.id,
@@ -257,6 +270,21 @@ export class MemoryTurnViewManager {
     return context
   }
 
+  /** Keep a delegated View available independently of the originating turn. */
+  retainView(viewId: string): () => void {
+    const id = this.requireStoredView(viewId).view.id
+    this.retainedViews.set(id, (this.retainedViews.get(id) ?? 0) + 1)
+    let retained = true
+    return () => {
+      if (!retained) return
+      retained = false
+      const count = this.retainedViews.get(id) ?? 0
+      if (count > 1) this.retainedViews.set(id, count - 1)
+      else this.retainedViews.delete(id)
+      this.collect()
+    }
+  }
+
   turn(turnId: string): MemoryTurnContext | undefined {
     return this.turns.get(turnId)
   }
@@ -264,6 +292,27 @@ export class MemoryTurnViewManager {
   activeTurn(agentId: string): MemoryTurnContext | undefined {
     const id = text(agentId, 'memory agent id', 300)
     return [...this.turns.values()].findLast(turn => turn.scope.agentId === id)
+  }
+
+  /**
+   * Latest reconciled View for inspection, not execution authority. A child
+   * must retain its delegated View and pin its own turn instead of inheriting
+   * whatever its parent's later turns happen to publish.
+   */
+  lastViewForAgent(agentId: string): MemoryTurnView | undefined {
+    const id = text(agentId, 'memory agent id', 300)
+    let match: MemoryTurnView | undefined
+    for (const [key, view] of this.currentByScope) {
+      let owner: string | undefined
+      try {
+        owner = (JSON.parse(key) as { agentId?: unknown }).agentId as string | undefined
+      } catch {
+        continue
+      }
+      if (owner !== id) continue
+      if (match === undefined || view.createdAt > match.createdAt) match = view
+    }
+    return match
   }
 
   endTurn(turnId: string): boolean {
@@ -453,6 +502,7 @@ export class MemoryTurnViewManager {
   private collect(): void {
     if (this.views.size <= this.maxViews) return
     const pinned = new Set([...this.turns.values()].map(turn => turn.viewId))
+    for (const id of this.retainedViews.keys()) pinned.add(id)
     if (this.current !== undefined) pinned.add(this.current.id)
     for (const id of this.views.keys()) {
       if (this.views.size <= this.maxViews) break

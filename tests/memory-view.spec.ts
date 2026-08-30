@@ -240,6 +240,56 @@ describe('MemoryTurnViewManager', () => {
     expect(views.lastFailure()).toContain('is too long')
   })
 
+  it('lastViewForAgent returns the owner latest view after the turn ended', async () => {
+    let revision = 1
+    const snapshot = vi.fn(() => ({ revision: `runtime-${revision}`, wake: `runtime ${revision}` }))
+    const { views } = harness([{ layerId: 'runtime', mode: 'eager', snapshot }])
+    const turnOne = await views.beginTurn('session:1', { storage: 'workspace', sessionId: 'session', agentId: 'session' })
+    views.endTurn('session:1')
+    expect(views.activeTurn('session')).toBeUndefined()
+    const last = views.lastViewForAgent('session')
+    expect(last).toBeDefined()
+    expect(last!.id).toBe(turnOne.viewId)
+
+    revision = 2
+    const turnTwo = await views.beginTurn('session:2', { storage: 'workspace', sessionId: 'session', agentId: 'session' })
+    views.endTurn('session:2')
+    expect(views.lastViewForAgent('session')!.id).toBe(turnTwo.viewId)
+  })
+
+  it('lastViewForAgent is scoped per agent and returns undefined for unknown agents', async () => {
+    const { views } = harness([{ layerId: 'runtime', mode: 'eager', snapshot: () => ({ revision: 'runtime-1', wake: 'valid' }) }])
+    await views.beginTurn('alpha:1', { storage: 'workspace', sessionId: 'alpha', agentId: 'alpha' })
+    views.endTurn('alpha:1')
+    expect(views.lastViewForAgent('alpha')?.id).toBeTruthy()
+    expect(views.lastViewForAgent('unknown-agent')).toBeUndefined()
+  })
+
+  it('pins an inherited View without consulting changed Sources and rejects repinning its authority', async () => {
+    let revision = 1
+    const snapshot = vi.fn(() => ({ revision: `source-${revision}`, wake: `runtime ${revision}` }))
+    const { views } = harness([{ layerId: 'runtime', mode: 'eager', snapshot }])
+    const first = await views.beginTurn('parent:1', { storage: 'global', sessionId: 'parent', agentId: 'parent' })
+    const release = views.retainView(first.viewId)
+    views.endTurn(first.turnId)
+    revision = 2
+    const later = await views.beginTurn('parent:2', { storage: 'global', sessionId: 'parent', agentId: 'parent' })
+    const scope = { storage: 'global' as const, sessionId: 'child', agentId: 'child' }
+    const child = views.pinTurn('child:1', scope, first.viewId)
+
+    expect(views.pinTurn('child:1', scope, first.viewId)).toBe(child)
+    expect(views.activeTurn('child')).toBe(child)
+    expect(views.wake(child.viewId).text).toBe('runtime 1')
+    expect(snapshot).toHaveBeenCalledTimes(2)
+    expect(() => views.pinTurn('child:1', scope, later.viewId)).toThrow('authority changed while pinned')
+    expect(() => views.pinTurn('child:1', { ...scope, workspaceId: 'outside' }, first.viewId)).toThrow('authority changed while pinned')
+    expect(() => views.pinTurn('unknown:1', scope, 'view-missing')).toThrow('View is unavailable')
+    expect(() => views.retainView('view-missing')).toThrow('View is unavailable')
+    views.endTurn(child.turnId)
+    release()
+    release()
+  })
+
   it('keeps last-valid Views isolated by snapshot scope', async () => {
     let failBeta = false
     const { views } = harness([{

@@ -175,7 +175,7 @@ function isAgentRuntimeSource(value: MnemonService | AgentRuntimeSource): value 
   return 'forAgent' in value && typeof value.forAgent === 'function'
 }
 
-/** Root calls delegate to a bounded child; memory-worker calls reach the deterministic service. */
+/** Model tools use the executing Agent's pinned runtime and deterministic service. */
 export function registerTools(ctx: HostContextShape, serviceOrSource: MnemonService | AgentRuntimeSource, coordinator: MnemonSubagentCoordinator, runtimeMemory?: RuntimeMemoryController, documents?: DocumentManager): void {
   const runtimeFor = (exec: ToolExecution): ToolRuntime => {
     if (isAgentRuntimeSource(serviceOrSource)) return serviceOrSource.forAgent(requireAgent(exec))
@@ -281,7 +281,7 @@ export function registerTools(ctx: HostContextShape, serviceOrSource: MnemonServ
 
   ctx.tools.register(definition({
     name: 'mnemon_document_search',
-    description: 'Run one focused search over project-scoped managed Documents before durable Recall. The Host admits only one Documents query for the root turn, shared with child and parallel calls. Results contain bounded query-local evidence, not complete records. Cold archives are excluded unless a known archive reference requires them.',
+    description: 'Run one focused search over project-scoped managed Documents before durable Recall. The Host admits only one Documents query per executing Agent turn; parallel calls share that slot, while child turns have independent budgets. Results contain bounded query-local evidence, not complete records. Cold archives are excluded unless a known archive reference requires them.',
     parameters: {
       type: 'object',
       properties: {
@@ -301,7 +301,7 @@ export function registerTools(ctx: HostContextShape, serviceOrSource: MnemonServ
           includeArchived: args.includeArchived === true,
           notRun: true,
           results: [],
-          hint: 'The root turn already used its Documents search slot, so no second disk query ran. Use the admitted evidence, make one focused mnemon_recall only if exact durable history is still missing, or answer with appropriate uncertainty.',
+          hint: 'This Agent turn already used its Documents search slot, so no second disk query ran. Use the admitted evidence, make one focused mnemon_recall only if exact durable history is still missing, or answer with appropriate uncertainty.',
         }
       }
       const result = await controller.search(args.query, { ...(args.includeArchived === undefined ? {} : { includeArchived: args.includeArchived }), limit: Math.min(4, args.limit ?? 4) })

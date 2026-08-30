@@ -44,7 +44,7 @@ model recall(query, optional source ids) ---------------------+
 committed mutation --> MemoryReceipt --> next turn snapshots a new TurnView
 ```
 
-`TurnView` 是轻量 generation snapshot，不是知识节点树。eager Source 文本原样进入 Wake；routed Source 在共享预算内只贡献一条 JSON 引用封面，完整 ID 权限留在 Host 并参与 digest。Recall 不再需要模型可见的 View ID、node ID、Zoom、capability token 或第二个 LLM worker。Host 从 root 回合（child agent 则沿 `parentSession`）派生权限、验证请求 ID 是子集，然后直接调用数据面。
+`TurnView` 是轻量 generation snapshot，不是知识节点树。eager Source 文本原样进入 Wake；routed Source 在共享预算内只贡献一条 JSON 引用封面，完整 ID 权限留在 Host 并参与 digest。Recall 不再需要模型可见的 View ID、node ID、Zoom、capability token 或第二个 LLM worker。Host 从正在执行的 Agent 自身回合 pin 派生权限、验证请求 ID 是子集，然后直接调用数据面。子 Agent 继承的是已捕获的 View，而不是随时查询父 Agent 最新回合的权限。
 
 Plan 只保留为受 Guard 约束或多 Layer 操作的内部事务机制：
 
@@ -140,11 +140,15 @@ Web 额外提供 `workspaceRegistry`、客户端 slots 和 `connection`，用于
 
 ## 直接召回与受监督 mutation
 
-Recall 是受 System Prompt 组装前固定的 Source 权限约束的确定性 Host 读取。Root 与 child agent 走同一路径；child 通过 `parentSession` 找到 root 回合，不能获取更新或更宽的运行图：
+Recall 是受 System Prompt 组装前固定的 Source 权限约束的确定性 Host 读取。每个执行中的 Agent 回合拥有自己的 pin。在 `agent/created`、子 Agent driver 开始执行之前，Host 通过 `parentSession` 找到仍存活的父 Agent，保留其固定 View，并将子 Agent 绑定到该运行图 generation。委托一直保留到子 Agent 本次 activation 被销毁，不受父回合结束、后续回合、View 回收或设置切换影响；嵌套子 Agent 继续捕获同一权限。每个子回合以自身身份固定被保留的 View，不安装 root 专属的提醒或空闲审查钩子。
+
+Host 显式创建的后台子任务若没有活跃的父模型回合，会在捕获的运行图与工作区范围内生成自己的 View。冷恢复的子任务属于新 activation，重新从存活的父 Agent 获取委托。只有 lineage 字符串、没有存活父 Agent 时不授予权限。缺少执行回合权限时失败关闭，不能回退到父 Agent 后来的活跃回合或 `lastViewForAgent()`。
+
+Recall / Related 缓存和 Documents 搜索槽位归属于不可变回合上下文对象，而不是可能复用的 session ID 或回合编号。兄弟任务、后续回合和恢复后的 activation 各有独立预算，同一回合内的并发调用则共享预算。缓存键包含选择的 Memory Space 子集，重放不会返回该子集之外的 evidence。排队中的查询保留准入时的数据面 generation，并在实际请求 Provider 前检查取消。
 
 ```text
 Agent calls mnemon_recall(query, optional memoryBodyIds)
-  -> resolve root turn and pinned TurnView manager
+  -> resolve the executing Agent's turn pin and retained runtime
   -> read Host-only Memory Space Source state
   -> reject requested IDs outside the pinned set
   -> MnemonService searches authorized Providers concurrently

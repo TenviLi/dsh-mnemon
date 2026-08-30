@@ -34,13 +34,15 @@ agent/pre-step(step=1)
 
 Source snapshot 不执行语义召回。Prime 只初始化路由状态，不执行异步 CLI 状态查询。
 
-## 主 Agent 召回
+子 Agent 在 `agent/created`、driver 启动前捕获并保留存活父 Agent 的固定 View 与运行图。自己的各个回合固定这一被保留的 View，即使父回合已结束或已进入更新的 generation。子 Agent activation 销毁时释放委托；冷恢复重新获取委托；Host 显式创建且没有父模型回合的后台子任务生成新的 scoped View。子 Agent 拥有自己的回合权限，但不安装 root 专属的 cue 或空闲审查。详见[权限生命周期](./architecture.md#直接召回与受监督-mutation)。
+
+## Agent 召回
 
 ```text
 Root or child Agent calls mnemon_recall(query, optional memoryBodyIds)
           |
           v
-resolve the root turn (child follows parentSession)
+resolve the executing Agent's own turn pin and retained runtime
           |
           v
 read the pinned Memory Space Source state on the Host
@@ -67,13 +69,13 @@ LLM 判断 evidence 是否足够
                               再检索一次、去重并关闭 Recall
           |
           v
-两次在当前 root 回合共享至多 6 条、每条 1,200 字符、
+两次在当前执行 Agent 回合共享至多 6 条、每条 1,200 字符、
 总正文 4,800 字符的 envelope
 ```
 
 模型工具不暴露 `category`、`source` 或 `intent` 过滤器：模型猜错过滤条件不能遮住精确证据。Recall 并非强制执行，普通 root 回合是 0 次 Provider 查询。LLM 主动调用后，Host 允许一个首次查询；只有 LLM 查看 evidence 后仍认为不足，才允许再提交一个实质不同的精炼查询。同查询和并发重复请求会 join 或重放；第三个不同查询只重放最新 evidence，不再到达 Provider。随后至多执行一次 Related，而且只能使用两次 Recall 任一已准入的 `memoryBodyId + id`；重复 Related 同样重放结果。
 
-Document search 另有独立边界：最多 4 条记录、每条最多 2,600 个查询附近字符、总正文最多 6,000 字符。模型侧 Memory Space 目录最多 16 项，`mnemon_status` 只返回紧凑健康汇总。完整记录、Provider 设置、路径和逐 Space 统计仍由 Web/RPC 控制面读取，不进入对话历史。
+Recall、Related 和单次 Documents 搜索槽位按执行中的 Agent 回合计预算。同一回合内并发调用共享状态，兄弟任务、后续回合和冷恢复的 activation 不会共享缓存 evidence 或占用彼此的预算。重放结果限于本次请求的 Memory Space 子集。Document search 另有独立边界：最多 4 条记录、每条最多 2,600 个查询附近字符、总正文最多 6,000 字符。模型侧 Memory Space 目录最多 16 项，`mnemon_status` 只返回紧凑健康汇总。完整记录、Provider 设置、路径和逐 Space 统计仍由 Web/RPC 控制面读取，不进入对话历史。
 
 如果用户已经提供当前事实，或仓库可以直接回答，Agent 不应为了“展示记忆”而召回。
 
