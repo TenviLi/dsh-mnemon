@@ -70,7 +70,7 @@ The default `global` root, `~/.mnemon`, is the simplest choice for several local
 
 Four boundaries shape the system:
 
-1. **Interaction**: conversation, Sidebar / Buildin workbench, `/mnemon` commands, and model tools.
+1. **Interaction**: conversation, Sidebar workbench, `/mnemon` commands, and model tools.
 2. **Supervision**: user-visible AI metadata, Agent Query, semantic writes, and archiving run in independent top-level task Agents; bounded internal workers are used only for structured judgment.
 3. **Deterministic control**: the Host enforces schema, paths, permissions, capacity, locks, revisions, CLI arguments, timeouts, and cancellation.
 4. **Data**: Runtime, Documents, and Mnemon Native data live under the effective `storageRoot`; external providers are reached only by the Host through explicit connections, never directly by the browser.

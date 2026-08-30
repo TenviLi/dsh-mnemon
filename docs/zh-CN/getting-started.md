@@ -137,12 +137,11 @@ dsh --profile headless "回答前先检查持久化的项目上下文。"
 
 打开“设置 → 记忆系统”：
 
-[![记忆系统设置：展示形态、存储位置、对话界面与备份](../assets/screenshots/settings-memory-system.png)](../assets/screenshots/settings-memory-system.png)
+[![仅 Sidebar 展示的记忆系统设置：记忆范围与记忆层](../assets/screenshots/settings-sidebar-only.png)](../assets/screenshots/settings-sidebar-only.png)
 
-### 展示形态
+### 工作台入口
 
-- **Sidebar**（默认）：从 DSH 左侧栏进入独立工作台；适合绝大多数用户。
-- **Buildin**：使用原有对话区标签页，并保留既有视觉。
+点击 DSH 侧边栏中的“记忆系统”打开独立工作台。Sidebar 是唯一展示方式，无需选择展示形态。
 
 ### 存储位置
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { resolveConfig } from '../src/config.ts'
+import { Config, resolveConfig } from '../src/config.ts'
 import type { ProcessOptions, ProcessRunner } from '../src/process.ts'
 import { createRunner } from '../src/runner.ts'
 
@@ -40,7 +40,6 @@ describe('Mnemon config and resolution', () => {
         maxUnknownResults: 2,
       },
       routingGuidance: true,
-      displayMode: 'sidebar',
       lifecycleEnabled: true,
       recallMode: 'guided',
       writebackMode: 'guided',
@@ -201,9 +200,14 @@ describe('Mnemon config and resolution', () => {
       .toMatchObject({ turnBar: false, saveAction: false })
   })
 
-  it('supports sidebar and buildin display modes with sidebar as the default', () => {
-    expect(resolveConfig({}).displayMode).toBe('sidebar')
-    expect(resolveConfig({ displayMode: 'buildin' }).displayMode).toBe('buildin')
+  it.each(['buildin', 'sidebar'])('ignores a legacy displayMode=%s without losing other settings', displayMode => {
+    const legacy = { displayMode, storageScope: 'workspace' as const, tabEnabled: false, writeEnabled: false }
+    const parsed = Config(legacy)
+    expect(resolveConfig(parsed)).toMatchObject({ storageScope: 'workspace', tabEnabled: false, writeEnabled: false })
+    expect(resolveConfig(parsed)).not.toHaveProperty('displayMode')
+    expect(resolveConfig({})).not.toHaveProperty('displayMode')
+    expect(Config.dict).not.toHaveProperty('displayMode')
+    expect(legacy).toEqual({ displayMode, storageScope: 'workspace', tabEnabled: false, writeEnabled: false })
   })
 
   it('resolves the one storage-scope setting and preserves legacy dataDir as custom', () => {

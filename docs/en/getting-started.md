@@ -133,16 +133,15 @@ For a development checkout, replace the package name with `"link:/absolute/path/
 
 With `storageScope=workspace`, Headless resolves `<invocation cwd>/.mnemon`; no Web workspace registry is required. The one-shot runner exits when its Agent becomes idle, so shutdown cancels any delayed score-based background review that has not started. Explicit or model-guided writes that finish during the task are durable.
 
-## 4. Choose entry point and storage
+## 4. Configure storage and the interface
 
 Open **Settings → Memory System**:
 
-[![Memory System settings for display, storage, conversation UI, and backup](../assets/screenshots/settings-memory-system.png)](../assets/screenshots/settings-memory-system.png)
+[![Sidebar-only Memory System settings: memory scope and layers](../assets/screenshots/settings-sidebar-only.png)](../assets/screenshots/settings-sidebar-only.png)
 
-### Display mode
+### Workbench entry
 
-- **Sidebar** (default): a dedicated workbench opened from the DSH sidebar; recommended for most users.
-- **Buildin**: the original conversation-area tab with its established visuals.
+Open the dedicated workbench from Memory System in the DSH sidebar. Sidebar is the only presentation; no display-mode selection is needed.
 
 ### Storage location
 

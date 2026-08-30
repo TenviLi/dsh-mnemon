@@ -96,7 +96,6 @@ try {
     cliPath: ${JSON.stringify(values['cli-name'])}
     storageScope: custom
     dataDir: ${JSON.stringify(dataDir)}
-    displayMode: sidebar
     lifecycleEnabled: false
     writeEnabled: true
 - id: agent-presets

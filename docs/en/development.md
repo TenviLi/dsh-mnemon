@@ -195,7 +195,7 @@ Recommended scenarios:
 9. Read-only: write tools, write commands, and write RPC are rejected while reads remain available.
 10. Sidebar: all four primary tabs, four Memory Space secondary tabs, stable headings, filters, and progressive loading work.
 11. Conversation UI: Turn memory appears only for completed turns with activity; links land correctly; canceling Save to memory performs no write.
-12. Settings: Sidebar / Buildin, storage scopes, and both conversation switches apply live without refresh.
+12. Settings: storage scopes and both conversation switches apply live; `tabEnabled` controls Sidebar visibility, and legacy display preferences never restore an embedded entry.
 13. ZIP: export can be previewed and merged into an isolated custom root; damaged checksums are rejected.
 14. Versions: checking never installs; link/manual sources offer no unsafe update; successful updates trigger a fresh status check.
 15. Status and browser console: no unhandled errors or warnings.
@@ -213,7 +213,7 @@ Public UI screenshots live under `docs/assets/screenshots/`, shared by both lang
 5. Replace screenshots with the same responsibility instead of accumulating versioned filenames. Add an asset only for a new user task.
 6. Refresh the README poster, GIF / MP4 demo, and both `ui-guide.md` files.
 7. Confirm PNG / JPEG extensions match actual encoding and that text is readable at original resolution.
-8. Remove unreferenced assets, stale Buildin layouts, and obsolete terminology.
+8. Remove unreferenced assets, stale layouts, and obsolete terminology.
 9. Run link/image checks, then open both READMEs and UI guides manually.
 
 README demo assets are `docs/assets/media/dsh-mnemon-memory-system-demo.*`. The demo should cover Status, Runtime, Documents, Memory Spaces, Provider and dialog interactions with full vertical scrolling and key button-state changes. Automation must not submit memory, update components, or save settings, but it may complete a safe read-only Agent Query.

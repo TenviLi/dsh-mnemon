@@ -136,7 +136,7 @@ Host 声明依赖 `tools`、`settings`、`commands`、`agents` 和 `subagents`�
 
 核心 Host 组合与 profile 无关。Web 和 Headless 都会挂载设置、运行时上下文、档案、记忆体工具、生命周期钩子和受监督 worker；Agent 操作始终根据 session cwd 解析 `workspace` 存储。
 
-Web 额外提供 `workspaceRegistry`、客户端 slots 和 `connection`，用于跨工作区查看、RPC、Sidebar / Buildin、设置界面、本回合记忆和存入记忆。Headless 不提供这些浏览器服务；一次性 runner 把任务作为普通用户消息提交，等待 Agent idle、flush session、输出最终答案后退出。插件销毁会取消尚未执行的延迟审查，因此 Headless 依赖任务内完成的显式或模型引导写入，而不是 idle 后维护。
+Web 额外提供 `workspaceRegistry`、客户端 slots 和 `connection`，用于跨工作区查看、RPC、Sidebar、设置界面、本回合记忆和存入记忆。Headless 不提供这些浏览器服务；一次性 runner 把任务作为普通用户消息提交，等待 Agent idle、flush session、输出最终答案后退出。插件销毁会取消尚未执行的延迟审查，因此 Headless 依赖任务内完成的显式或模型引导写入，而不是 idle 后维护。
 
 ## 直接召回与受监督 mutation
 

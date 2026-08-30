@@ -12,13 +12,12 @@ $DSH_HOME/settings.yaml
 
 默认通常是 `~/.dsh/settings.yaml`。当前全部配置标记为 `live` 生效；保存后会先初始化候选运行图，再原子切换 Host 服务。
 
-Web 设置页编辑 `displayMode`、`storageScope`、独立的 `runtimeUserScope`、`dataDir`、Mnemon Native 的 Ollama 嵌入覆盖、三个记忆层的总开关、后台任务 Agent 的模型路由，以及 `mnemon-ui` 下的回合记忆条和存入记忆按钮。“全局 / 工作区”是整个记忆系统的范围；USER.md 用户档案也可以显式保持全局，而项目记忆继续跟随该范围。`custom` 数据位置、嵌入运行配置与 ZIP 备份 / 迁移收纳在 Mnemon Native 折叠栏。每个第三方 Provider 有独立的服务配置折叠栏；这里保存的是 endpoint、凭据或可执行文件等可复用服务信息，不会创建记忆体。具体记忆体及其数据范围仍在“记忆体 → 概览”中创建。其他高级项需要直接修改 YAML。
+Web 设置页编辑 `storageScope`、独立的 `runtimeUserScope`、`dataDir`、Mnemon Native 的 Ollama 嵌入覆盖、三个记忆层的总开关、后台任务 Agent 的模型路由，以及 `mnemon-ui` 下的回合记忆条和存入记忆按钮。“全局 / 工作区”是整个记忆系统的范围；USER.md 用户档案也可以显式保持全局，而项目记忆继续跟随该范围。`custom` 数据位置、嵌入运行配置与 ZIP 备份 / 迁移收纳在 Mnemon Native 折叠栏。每个第三方 Provider 有独立的服务配置折叠栏；这里保存的是 endpoint、凭据或可执行文件等可复用服务信息，不会创建记忆体。具体记忆体及其数据范围仍在“记忆体 → 概览”中创建。其他高级项需要直接修改 YAML。
 
 ## 完整示例
 
 ```yaml
 mnemon:
-  displayMode: sidebar # sidebar | buildin
   storageScope: global # global | workspace | custom
   runtimeUserScope: storage # storage | global
   # dataDir: ~/mnemon-data       # custom 时必填
@@ -64,7 +63,6 @@ mnemon:
 
 | 配置 | 默认值 | 范围 | 实现语义 |
 |---|---:|---|---|
-| `displayMode` | `sidebar` | `sidebar` / `buildin` | `sidebar` 挂载左侧栏独立工作台；`buildin` 恢复 DSH 原生对话区标签页；保存后实时切换且不会同时挂载两个入口 |
 | `storageScope` | `global` | `global` / `workspace` / `custom` | 统一控制 Runtime、Documents、Memory Spaces 和预留 state 根目录 |
 | `runtimeUserScope` | `storage` | `storage` / `global` | 让 USER.md 跟随当前存储根，或叠加全局 USER.md，同时保持项目 MEMORY.md 与其他层使用所选范围 |
 | `dataDir` | 未设置 | 绝对路径、`~` 或 `~/...` | `custom` 时必填；旧配置只设置它时自动解析为 `custom` |
@@ -88,7 +86,7 @@ mnemon:
 | `recallMode` | `guided` | `guided` / `off` | 是否在每个会话注入一次可持续复用的按需 recall cue；不移除显式召回 |
 | `writebackMode` | `guided` | `guided` / `off` | 是否在每个会话注入一次可持续复用的热记忆 cue，并启用评分加 dirty admission 的后台审查；不移除显式写入 |
 | `idleReviewMs` | `30000` | 5000–600000 ms | 达标后需要连续空闲的时间 |
-| `tabEnabled` | `true` | boolean | 是否挂载 `displayMode` 指定的 Web 入口；关闭后 Host RPC、命令和 Agent 工具保持注册 |
+| `tabEnabled` | `true` | boolean | 是否挂载 Sidebar 入口和工作台；关闭后 Host RPC、命令和 Agent 工具保持注册 |
 | `writeEnabled` | `true` | boolean | 是否暴露语义写工具、写 RPC 和写命令 |
 | `taskAgentModel` | `{ mode: inherit }` | `inherit` / `fixed` | AI 元信息、Agent 查询、记忆沉淀和档案归档使用的独立任务 Agent，以及空闲复盘 worker 的模型路由；`fixed` 必须同时保存 `provider` 与 `model`，并会钉住对应的写入、证据问答、Provider 选择、迁移、压缩、归档和元信息维护 worker。对话中的 Recall 与 Related 是 Host 直接读取，不使用该路由 |
 | `remoteAccess` | `read-only` | `read-only` / `trusted-host` | DSH 0.1.1-rc.2 的非 loopback Mnemon 管理 RPC 兼容策略；仅启动时读取，DSH 0.1.2-alpha.1 会忽略 |
@@ -330,13 +328,15 @@ routingGuidance=false
   -> runtime-memory context remains
 ```
 
-## 展示形态与 `tabEnabled` 界面开关
+## Sidebar 入口与 `tabEnabled` 界面开关
 
-`displayMode=sidebar`（默认）会挂载“记忆系统”侧边栏入口和独立主内容区工作台，并使用无 Mnemon Logo 的 DSH 官方风格极简皮肤；`displayMode=buildin` 会改为注册原有的 DSH `conversation.view` 内嵌标签页并保持既有视觉。两者共享功能工作台，但外观定义隔离。设置页保存后会先卸载当前入口再挂载目标入口，因此两种形态不会同时出现。
+记忆系统只提供 Sidebar 入口：从 DSH 左侧栏打开独立主内容区工作台，使用无 Mnemon Logo 的 DSH 官方风格极简皮肤。设置页不再提供展示形态选择，也不会注册 `conversation.view` 内嵌标签页。
 
 侧栏“记忆系统”是打开工作台的导航入口，重复点击仍保持打开；请使用“返回会话”关闭。与任务看板、SSH 切换时，同时同步面板可见性和入口状态，即使其他插件的激活通知遗漏，点击也能重新打开记忆系统。
 
-`tabEnabled=false` 会实时移除当前形态的 Web 入口。为避免运行中的 Agent 或命令因界面设置变化而失效，Host RPC、命令和工具不会随展示形态或总开关卸载。
+升级兼容：旧 YAML 或用户设置中的 `displayMode`（包括 `buildin`）会被忽略，不需要手工清理即可启动，也不会迁移或删除记忆数据。该字段不再属于有效配置，新的设置 RPC 不再接受对它的写入。
+
+`tabEnabled=false` 会实时移除 Sidebar 入口和工作台；重新开启后仍使用 Sidebar。Host RPC、命令和工具保持注册，运行中的 Agent 或命令不会因界面开关而失效。对话内的本回合记忆与存入记忆仍由 `mnemon-ui` 独立控制。
 
 ## Profile patch 覆盖
 

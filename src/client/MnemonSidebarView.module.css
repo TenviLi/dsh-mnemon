@@ -1,6 +1,6 @@
 /*
  * Sidebar is a DSH-native utility panel: plain title, compact tabs and semantic
- * host tokens. Buildin never receives these classes and retains its original UI.
+ * host tokens. These classes compose with the shared view and dialog styles.
  */
 .shell.shell {
   background: var(--mn-surface);
@@ -243,8 +243,7 @@
 
 /*
  * DSH action hierarchy, shared by the installed SSH and task-board panels.
- * The stable source-class suffixes let Sidebar restyle the existing controls
- * without leaking these appearance rules into Buildin.
+ * Stable source-class suffixes apply the sidebar skin to shared controls.
  */
 .shell [class*='primaryButton'] {
   min-height: 32px;
@@ -414,7 +413,7 @@
 /*
  * Readability scale borrowed from the official Task Board and SSH panels:
  * 13px content/controls, 12px labels and hints, 11px compact metadata.
- * The original component stylesheet remains untouched for Buildin.
+ * Shared component rules continue to provide layout and dialog behavior.
  */
 .shell input,
 .shell select,

@@ -5,8 +5,8 @@
  * A dispatch asks the Mnemon view to open a page (optionally with a seed) in
  * the session the dispatch came from. The view may not be mounted when the
  * user clicks — the dispatch is then held per session and consumed the next
- * time that session's Mnemon view mounts, so switching to the Memory System
- * tab afterwards still lands on the requested page.
+ * time that session's Mnemon workspace mounts, so opening Memory System from
+ * the sidebar afterwards still lands on the requested page or write dialog.
  */
 
 /** Pages of the Mnemon workspace, mirroring MnemonView's internal Page union. */

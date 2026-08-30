@@ -10,8 +10,9 @@ import {
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { appearanceClass, useMnemonViewAppearance } from './MnemonViewAppearance.tsx'
+import { appearanceClass } from './view-styles.ts'
 import css from './MnemonView.module.css'
+import sidebarCss from './MnemonSidebarView.module.css'
 
 const SHEET_MEDIA = '(max-width: 760px)'
 const REDUCED_MOTION_MEDIA = '(prefers-reduced-motion: reduce)'
@@ -95,7 +96,6 @@ function waitForAnimations(animations: Animation[], duration: number): Promise<v
 
 /** Shared top-layer dialog behavior for every Mnemon workspace action surface. */
 export function MnemonDialog(props: MnemonDialogProps): JSX.Element | null {
-  const appearance = useMnemonViewAppearance()
   const titleId = useId()
   const descriptionId = useId()
   const backdropRef = useRef<HTMLDivElement | null>(null)
@@ -331,9 +331,9 @@ export function MnemonDialog(props: MnemonDialogProps): JSX.Element | null {
   if (typeof document === 'undefined') return null
   return createPortal(
     <div className={css.modalPortal} data-mnemon-dialog-portal="">
-      <div className={appearanceClass(appearanceClass(css.modalTheme, css.shell), appearance.classes.shell)}>
-        <div ref={backdropRef} className={appearanceClass(css.modalBackdrop, appearance.classes.modalBackdrop)} onPointerDown={event => { if (event.target === event.currentTarget) requestClose() }}>
-          <section ref={dialogRef} className={appearanceClass(appearanceClass(css.modal, appearance.classes.modal), props.wide === true ? css.modalWide : undefined)} role="dialog" aria-modal="true" aria-busy={props.contentReady === false || props.busy === true ? true : undefined} aria-labelledby={titleId} aria-describedby={props.description === undefined ? undefined : descriptionId} onClickCapture={interceptCloseControl}>
+      <div className={appearanceClass(appearanceClass(css.modalTheme, css.shell), sidebarCss.shell)}>
+        <div ref={backdropRef} className={appearanceClass(css.modalBackdrop, sidebarCss.modalBackdrop)} onPointerDown={event => { if (event.target === event.currentTarget) requestClose() }}>
+          <section ref={dialogRef} className={appearanceClass(appearanceClass(css.modal, sidebarCss.modal), props.wide === true ? css.modalWide : undefined)} role="dialog" aria-modal="true" aria-busy={props.contentReady === false || props.busy === true ? true : undefined} aria-labelledby={titleId} aria-describedby={props.description === undefined ? undefined : descriptionId} onClickCapture={interceptCloseControl}>
             <div className={css.modalDragHandle} data-dialog-drag-handle="" aria-hidden="true" onPointerDown={beginDrag} onLostPointerCapture={event => { if (dragRef.current?.pointerId === event.pointerId) resetDrag() }}><span /></div>
             <header><div><h2 id={titleId}>{props.title}</h2>{props.description !== undefined && <p id={descriptionId}>{props.description}</p>}</div><button ref={closeButtonRef} type="button" className={css.iconButton} disabled={props.busy} onClick={requestClose} aria-label={props.closeLabel}>×</button></header>
             <div className={css.modalBody}>{props.children}</div>
