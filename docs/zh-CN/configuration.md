@@ -243,7 +243,7 @@ config.cliPath
            /usr/bin/mnemon
 ```
 
-显式 `cliPath` 会被采用；若它不可执行，实际调用会返回启动错误。Windows 自动发现只接受普通 `.exe` 文件；进程执行不使用 shell，因此有意排除 `.cmd` 与 `.bat` wrapper。
+显式 `cliPath` 会被采用；既可以填写完整路径，也可以填写 PATH 中的命令名（例如 `mnemon`）。状态检查与实际调用使用同一套发现规则，并在重新检查时识别安装或移除的 CLI，无需重启 DSH。若显式指定的命令不可执行，实际调用会返回启动错误，不会悄悄改用其他 CLI。Windows 自动发现只接受普通 `.exe` 文件；进程执行不使用 shell，因此有意排除 `.cmd` 与 `.bat` wrapper。
 
 ## 兼容 Store 提示优先级
 
@@ -333,6 +333,8 @@ routingGuidance=false
 ## 展示形态与 `tabEnabled` 界面开关
 
 `displayMode=sidebar`（默认）会挂载“记忆系统”侧边栏入口和独立主内容区工作台，并使用无 Mnemon Logo 的 DSH 官方风格极简皮肤；`displayMode=buildin` 会改为注册原有的 DSH `conversation.view` 内嵌标签页并保持既有视觉。两者共享功能工作台，但外观定义隔离。设置页保存后会先卸载当前入口再挂载目标入口，因此两种形态不会同时出现。
+
+侧栏“记忆系统”是打开工作台的导航入口，重复点击仍保持打开；请使用“返回会话”关闭。与任务看板、SSH 切换时，同时同步面板可见性和入口状态，即使其他插件的激活通知遗漏，点击也能重新打开记忆系统。
 
 `tabEnabled=false` 会实时移除当前形态的 Web 入口。为避免运行中的 Agent 或命令因界面设置变化而失效，Host RPC、命令和工具不会随展示形态或总开关卸载。
 

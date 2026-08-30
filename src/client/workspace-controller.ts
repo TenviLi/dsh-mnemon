@@ -14,12 +14,14 @@ export class MnemonWorkspaceController {
     return () => { this.listeners.delete(listener) }
   }
 
-  open(): void { this.setOpen(true) }
+  // Explicit navigation must reassert the panel even if a sibling took over
+  // without announcing it and our last snapshot still says open.
+  open(): void { this.setOpen(true, true) }
   close(): void { this.setOpen(false) }
   toggle(): void { this.setOpen(!this.snapshot.open) }
 
-  private setOpen(open: boolean): void {
-    if (this.snapshot.open === open) return
+  private setOpen(open: boolean, reassert = false): void {
+    if (this.snapshot.open === open && !reassert) return
     this.snapshot = { open }
     for (const listener of this.listeners) listener()
   }

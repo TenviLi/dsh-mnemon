@@ -1,12 +1,15 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, win32 } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
-import { findMnemonCommand } from '../src/runner.ts'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { resolveConfig } from '../src/config.ts'
+import { createRunner, findMnemonCommand } from '../src/runner.ts'
+import { VersionUpdateManager } from '../src/version-updates.ts'
 
 const temporaryDirectories: string[] = []
 
 afterEach(() => {
+  vi.unstubAllEnvs()
   for (const directory of temporaryDirectories.splice(0)) rmSync(directory, { recursive: true, force: true })
 })
 
@@ -17,6 +20,68 @@ function temporaryDirectory(): string {
 }
 
 describe('Mnemon CLI discovery', () => {
+  it.each([
+    { platform: 'darwin' as const, command: 'mnemon', env: { PATH: '/tools/bin' }, expected: '/tools/bin/mnemon' },
+    { platform: 'linux' as const, command: 'mnemon-custom', env: { PATH: '/tools/bin' }, expected: '/tools/bin/mnemon-custom' },
+    { platform: 'win32' as const, command: 'mnemon', env: { Path: 'C:\\tools' }, expected: 'C:\\tools\\mnemon.exe' },
+    { platform: 'win32' as const, command: 'mnemon.exe', env: { Path: 'C:\\tools' }, expected: 'C:\\tools\\mnemon.exe' },
+  ])('resolves the configured command name through PATH on $platform ($command)', ({ platform, command, env, expected }) => {
+    expect(findMnemonCommand({ cliPath: command }, {
+      platform, env, home: '/unused', isExecutable: path => path === expected,
+    })).toBe(expected)
+  })
+
+  it('does not substitute a different binary for an unavailable configured command', () => {
+    expect(findMnemonCommand({ cliPath: 'missing-mnemon' }, {
+      platform: 'linux', env: { PATH: '/tools', MNEMON_CLI_PATH: '/other/mnemon' }, home: '/unused',
+      isExecutable: path => path === '/tools/mnemon' || path === '/other/mnemon',
+    })).toBeUndefined()
+  })
+
+  it('uses the same executable for command-name health checks, execution and version checks', async () => {
+    const root = temporaryDirectory()
+    const binary = join(root, process.platform === 'win32' ? 'mnemon.exe' : 'mnemon')
+    writeFileSync(binary, 'fixture')
+    chmodSync(binary, 0o755)
+    vi.stubEnv('PATH', root)
+    vi.stubEnv('MNEMON_CLI_PATH', '')
+    const config = resolveConfig({ cliPath: 'mnemon', dataDir: root })
+    const run = vi.fn(async () => ({ stdout: 'mnemon version 0.2.5\n', stderr: '', exitCode: 0 }))
+    const runner = createRunner(config, run)
+    const versions = new VersionUpdateManager({
+      mnemonCliPath: () => config.cliPath, processRunner: run, dshHome: join(root, 'dsh-home'),
+      fetchNpmLatest: async () => '0.3.5', fetchMnemonLatest: async () => '0.2.5',
+    })
+
+    expect(runner.command).toBe(binary)
+    expect(runner.commandFound).toBe(true)
+    await runner.runText(['--version'], { globalFlags: false })
+    expect(run).toHaveBeenCalledWith(binary, ['--version'], expect.any(Object))
+    expect((await versions.check()).components.find(item => item.id === 'mnemon')).toMatchObject({
+      executablePath: binary, current: '0.2.5',
+    })
+  })
+
+  it('refreshes CLI discovery after installation and removal without recreating the runner', async () => {
+    const root = temporaryDirectory()
+    const binary = join(root, process.platform === 'win32' ? 'mnemon.exe' : 'mnemon')
+    vi.stubEnv('PATH', root)
+    vi.stubEnv('MNEMON_CLI_PATH', '')
+    const run = vi.fn(async () => ({ stdout: 'mnemon version 0.2.5\n', stderr: '', exitCode: 0 }))
+    const runner = createRunner(resolveConfig({ cliPath: 'mnemon', dataDir: root }), run)
+    expect(runner.commandFound).toBe(false)
+
+    writeFileSync(binary, 'fixture')
+    chmodSync(binary, 0o755)
+    expect(runner.commandFound).toBe(true)
+    expect(runner.command).toBe(binary)
+    await runner.runText(['--version'], { globalFlags: false })
+    expect(run).toHaveBeenCalledWith(binary, ['--version'], expect.any(Object))
+
+    rmSync(binary)
+    expect(runner.commandFound).toBe(false)
+  })
+
   it('keeps an explicit cliPath first and expands Windows home syntax', () => {
     expect(findMnemonCommand(
       { cliPath: '~\\go\\bin\\mnemon.exe' },
