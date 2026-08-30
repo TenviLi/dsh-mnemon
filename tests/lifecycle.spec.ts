@@ -148,22 +148,26 @@ function fixture(config = resolveConfig({ cliPath: '/fake/mnemon' }), options: {
       return () => rootListeners.delete(name)
     }),
   } as unknown as HostContextShape
+  const pinnedTurns = new Map<string, object>()
   const memoryViews = {
     beginTurn: vi.fn(async (turnId: string, scope: object) => {
       const turn = turnId.slice(turnId.lastIndexOf(':') + 1)
-      return { turnId, viewId: `view-${turn}`, viewDigest: `digest-${turn}`, scope, startedAt: '2026-08-23T00:00:00.000Z' }
+      const context = { turnId, viewId: `view-${turn}`, viewDigest: `digest-${turn}`, scope, startedAt: '2026-08-23T00:00:00.000Z' }
+      pinnedTurns.set(turnId, context)
+      return context
     }),
+    turn: vi.fn((turnId: string) => pinnedTurns.get(turnId)),
     wake: vi.fn((viewId: string) => ({
       viewId,
       viewDigest: viewId.replace('view-', 'digest-'),
       text: `Pinned Wake ${viewId}`,
       sections: [{ layerId: 'runtime', mode: 'eager', text: `Pinned Wake ${viewId}` }],
     })),
-    endTurn: vi.fn(() => true),
+    endTurn: vi.fn((turnId: string) => pinnedTurns.delete(turnId)),
     reconcile: vi.fn(async () => ({ id: 'next-view' })),
   }
   const runtimeSource = {
-    forAgent: vi.fn(() => ({ runtimeMemory: {}, memoryViews })),
+    forAgent: vi.fn(() => ({ config, runtimeMemory: {}, memoryViews })),
     bindAgentRuntime: vi.fn(() => vi.fn()),
   }
   const lifecycle = new MnemonLifecycle(ctx, coordinator, config, runtimeSource as never)

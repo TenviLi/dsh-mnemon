@@ -14,6 +14,8 @@ if (!restore && sourceInput === undefined) {
 const links = new Map([
   ['@deepseek-ai/cordis', 'vendor/cordis'],
   ['@deepseek-ai/dsh', 'apps/cli'],
+  ['@deepseek-ai/dsh-agent', 'packages/core/agent'],
+  ['@deepseek-ai/dsh-agent-loop', 'packages/core/agent-loop'],
   ['@deepseek-ai/dsh-client-connection', 'packages/client/connection'],
   ['@deepseek-ai/dsh-client-locale', 'packages/client/locale'],
   ['@deepseek-ai/dsh-client-ui-conversation', 'packages/client/ui-conversation'],
@@ -22,7 +24,14 @@ const links = new Map([
   ['@deepseek-ai/dsh-client-ui-settings', 'packages/client/ui-settings'],
   ['@deepseek-ai/dsh-client-ui-slots', 'packages/client/ui-slots'],
   ['@deepseek-ai/dsh-client-ui-tool', 'packages/client/ui-tool'],
+  ['@deepseek-ai/dsh-llm', 'packages/llm/llm'],
+  ['@deepseek-ai/dsh-session', 'packages/core/session'],
+  ['@deepseek-ai/dsh-session-persistence-jsonl', 'packages/session/session-persistence-jsonl'],
+  ['@deepseek-ai/dsh-session-query', 'packages/session-query/session-query'],
+  ['@deepseek-ai/dsh-subagent', 'packages/subagent/subagent'],
+  ['@deepseek-ai/dsh-subagent-spawn-in-process', 'packages/subagent/subagent-spawn-in-process'],
   ['@deepseek-ai/dsh-system-prompt', 'packages/core/system-prompt'],
+  ['@deepseek-ai/dsh-tools', 'packages/core/tools'],
 ])
 const restoreFile = join(root, 'node_modules', '.dsh-mnemon-dsh-source-links.json')
 
@@ -107,4 +116,5 @@ for (const [name, source] of validatedLinks) {
 }
 
 console.log(`Linked ${links.size} build-time packages from DSH ${expectedVersion} at ${sourceRoot}.`)
-console.log('Run pnpm run dsh:restore-registry to restore registry dependencies.')
+console.log('Run pnpm_config_verify_deps_before_run=false pnpm run verify to preserve these source links while verifying.')
+console.log('Run pnpm_config_verify_deps_before_run=false pnpm run dsh:restore-registry to restore registry dependencies.')
