@@ -1,6 +1,10 @@
 # npm 发布版 Web UI 回归
 
+**简体中文** | [English](../en/testing-npm-regressions.md) | [开发与验证](./development.md)
+
 本轮以 npm `dsh-mnemon@0.3.5` 对应的 `v0.3.5` 源码为基线，不使用 0.4.0 开发代码。Host 固定为 npm 的非 alpha 最新版 `@deepseek-ai/dsh@0.1.1-rc.2`；Web UI 使用 `@linxin666/dsh-web-all@0.3.6`，并覆盖原包名 `@linxin666/dsh-web-ui-all@0.3.6`。
+
+修复先在该 npm 基线上完成，再同步仍为 0.3.5 的 `main` 并重新验证 PR 代码。保留原版与补丁版的独立记录，不能将最新 `main` 当作未经修改的 npm 对照版。
 
 ## 隔离启动
 
@@ -48,3 +52,18 @@ pnpm verify:package
 ```
 
 截图、浏览器可见状态记录及前后 JSON 测试结果应与运行的 `fixture.json` 一起保存。截图必须标明普通环境还是受控故障环境。
+
+## 2026-08-30 公开验证记录
+
+原版对照为未经修改的 npm 0.3.5。PR 代码提交 `5907523` 已同步 `main` 的 `05c128b`；下表的修复后截图来自该提交打出的本地 tarball，不是已发布的新版本。CLI 为官方 Mnemon 0.2.5（macOS arm64）。
+
+| 场景 | 截图 | 可见结果 |
+|---|---|---|
+| 原版，普通环境 | [CLI 状态误报](../pr-assets/npm-sidebar-cli/before-cli.jpg) | 已安装 CLI，却显示“未找到 Mnemon CLI” |
+| PR 代码，普通环境 | [十轮切换后](../pr-assets/npm-sidebar-cli/after-normal.jpg) | 返回记忆系统；CLI 显示服务就绪，无已激活记忆体 |
+| 原版，受控通知丢失 | [返回失败](../pr-assets/npm-sidebar-cli/before-controlled.jpg) | 第三次点击记忆系统后仍显示任务看板 |
+| PR 代码，受控通知丢失 | [返回成功](../pr-assets/npm-sidebar-cli/after-controlled.jpg) | 第三次点击后显示记忆系统 |
+
+同步后的 `pnpm run verify`：541 项通过、1 项 Windows 专用测试在 macOS 跳过；106 个构建文件确定性检查、35 个 Headless 工具、10 个 Node 兼容公共入口、publint 与 attw 均通过。上游 rc.2 缺失 source map 的告警保留，不影响测试结果。普通环境再次完成十轮真实页面切换，CLI 版本检查显示 0.2.5，浏览器控制台无 error；受控故障环境确认测试插件确实丢弃通知后仍可返回。
+
+补丁 tarball SHA-256：`0d3757f30a7f1dd79a31bec5d988bbdcdf20a9802f5b75d0e8aa9072b74b68f9`。原始日志、带本机路径的版本弹窗与 fixture 仅保存在本地；公开截图没有凭据或个人记忆。
