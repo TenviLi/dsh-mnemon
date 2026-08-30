@@ -260,7 +260,7 @@ describe('MnemonSettingsCard', () => {
     render(<MnemonSettingsCard scope={scope} connection={connection} />)
 
     await waitFor(() => expect(call).toHaveBeenCalledWith('/dsh-mnemon-read', 'task-agent-models', { includeCatalog: false }))
-    expect((screen.getByRole('radio', { name: 'Sidebar' }) as HTMLInputElement).disabled).toBe(false)
+    expect((screen.getByRole('radio', { name: '工作区' }) as HTMLInputElement).disabled).toBe(false)
     expect((screen.getByRole('radio', { name: '跟随主链路' }) as HTMLInputElement).disabled).toBe(false)
     expect(screen.queryByText('当前部署的插件设置为只读。')).toBeNull()
     await waitFor(() => expect(call.mock.calls.some(([, endpoint]) => endpoint === 'provider-services')).toBe(true))
@@ -425,11 +425,11 @@ describe('MnemonSettingsCard', () => {
     expect(call).toHaveBeenCalledWith('/dsh-mnemon-read', 'task-agent-models', { includeCatalog: true })
   })
 
-  it('defaults to sidebar and persists a buildin display-mode selection', async () => {
+  it.each([undefined, 'buildin', 'sidebar'])('omits the display selector even with legacy displayMode=%s', async displayMode => {
     const mutate = vi.fn(async () => {})
     const snapshot = {
       status: 'ready' as const,
-      value: { storageScope: 'global' as const },
+      value: { storageScope: 'global' as const, displayMode },
       base: {}, user: {}, revision: 0, writable: true, mode: 'host' as const,
     }
     const scope = {
@@ -442,12 +442,15 @@ describe('MnemonSettingsCard', () => {
 
     render(<MnemonSettingsCard scope={scope} />)
 
-    expect((screen.getByRole('radio', { name: 'Sidebar' }) as HTMLInputElement).checked).toBe(true)
-    fireEvent.click(screen.getByRole('radio', { name: 'Buildin' }))
+    expect(screen.queryByRole('heading', { name: '展示形态' })).toBeNull()
+    expect(screen.queryByRole('radio', { name: /Sidebar|Buildin/ })).toBeNull()
+    expect(screen.queryByText('选择记忆系统在 DSH Web 中的入口位置；切换后立即生效。')).toBeNull()
+    expect(mutate).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('radio', { name: '工作区' }))
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => expect(mutate).toHaveBeenCalledWith([
-      { op: 'set', path: ['displayMode'], value: 'buildin' },
+      { op: 'set', path: ['storageScope'], value: 'workspace' },
     ]))
   })
 

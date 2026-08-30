@@ -135,8 +135,8 @@ describe('interaction surfaces binding', () => {
     expect(activeRegistrations()).not.toContain('conversation.chat.turnTail')
   })
 
-  it('activates the built-in Memory tab before delivering a conversation anchor', async () => {
-    const { ctx, injects } = makeCtx({}, { displayMode: 'buildin' })
+  it('opens the sidebar for a conversation anchor and ignores a legacy display preference', async () => {
+    const { ctx, injects, activeRegistrations } = makeCtx({}, { displayMode: 'buildin' })
     const tab = document.createElement('button')
     tab.setAttribute('role', 'tab')
     tab.textContent = 'tab.label'
@@ -145,10 +145,12 @@ describe('interaction surfaces binding', () => {
     document.body.append(tab)
 
     apply(ctx)
-    await waitFor(() => expect(injects).toContain('conversation.view'))
+    await waitFor(() => expect(activeRegistrations()).toContain('mnemon-save'))
     dispatchMnemonAnchor({ page: 'documents', sessionId: 'session-a' })
 
-    expect(clicked).toHaveBeenCalledTimes(1)
+    expect(clicked).not.toHaveBeenCalled()
+    expect(injects).not.toContain('conversation.view')
+    expect(document.documentElement.hasAttribute('data-dsh-mnemon-active')).toBe(true)
     expect(consumeMnemonAnchor('session-a')).toMatchObject({ page: 'documents' })
   })
 

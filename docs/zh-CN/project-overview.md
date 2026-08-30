@@ -70,7 +70,7 @@
 
 架构由四个边界组成：
 
-1. **交互边界**：用户通过对话、Sidebar / Buildin 工作台、`/mnemon` 命令与模型工具使用记忆。
+1. **交互边界**：用户通过对话、Sidebar 工作台、`/mnemon` 命令与模型工具使用记忆。
 2. **监督边界**：用户可见的 AI 元信息、Agent 查询、语义写入和归档由独立顶层任务 Agent 执行；需要结构化判断时才继续调用内部受限 worker。
 3. **确定性控制边界**：Host 校验 schema、路径、权限、容量、锁、revision、CLI 参数、超时与取消。
 4. **数据边界**：Runtime、Documents 与 Mnemon Native 数据位于当前 `storageRoot`；第三方 Provider 只在 Host 内通过显式连接访问，浏览器不直连。
@@ -145,4 +145,4 @@ Web 的“直接检索”返回原始证据；“Agent 查询”先取得相同�
 - [架构设计](./architecture.md)：模块、worker 与信任边界。
 - [存储模型](./storage-model.md)：目录、容量与权威源。
 - [生命周期与核心流程](./workflows.md)：注入、召回、写入、审查与归档。
-- [配置参考](./configuration.md)：展示形态、存储范围与高级开关。
+- [配置参考](./configuration.md)：Sidebar 入口、存储范围与高级开关。

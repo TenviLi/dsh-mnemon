@@ -9,13 +9,12 @@ This page is an integration reference. For daily use, start with the [Sidebar an
 | Entry | Default | Description |
 |---|---:|---|
 | Sidebar | Yes | Dedicated Memory System workbench with Status, Runtime, Documents, and Memory Spaces |
-| Buildin | No | Original `conversation.view` tab with established visuals |
 | Turn memory | Yes | Memory-tool summary for a completed turn, with exact page links |
 | Save to memory | Yes | Action beside finalized assistant replies; confirmation invokes supervised writing |
 | `/mnemon` | — | Conversation command entry |
 | Model tools | — | Structured Root Agent read/write entry |
 
-Sidebar and Buildin are live, mutually exclusive mounts that share functionality, data, and Host services. The two conversation entries can be disabled independently through `mnemon-ui` settings.
+Sidebar is the only workbench entry, with visibility controlled by `tabEnabled`. The two conversation shortcuts can be disabled independently through `mnemon-ui` settings.
 
 ## Profile surfaces
 
@@ -24,7 +23,7 @@ Sidebar and Buildin are live, mutually exclusive mounts that share functionality
 | Runtime context and lifecycle guidance | Yes | Yes |
 | Model tools and independent task Agents | Yes | Yes |
 | Agent-cwd routing for `workspace` scope | Yes | Yes |
-| Sidebar / Buildin / conversation actions | Yes | No |
+| Sidebar / conversation actions | Yes | No |
 | Host-to-client RPC | Yes | No |
 | Delayed score-based review after Agent idle | While the Host remains alive | Cancelled when the one-shot process exits |
 
@@ -237,4 +236,4 @@ The Host publishes `mnemonMemory: MemoryBoot` as a Cordis service (`MemoryExtens
 
 ## Internationalization
 
-The main Sidebar / Buildin workbench, settings, and conversation entries support Chinese and English and follow DSH locale live. Brand names, tool names, and configuration keys are not translated. `/mnemon` commands, model-tool cards, some Host errors, and compatibility metadata remain partially untranslated.
+The main Sidebar workbench, settings, and conversation entries support Chinese and English and follow DSH locale live. Brand names, tool names, and configuration keys are not translated. `/mnemon` commands, model-tool cards, some Host errors, and compatibility metadata remain partially untranslated.

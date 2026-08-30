@@ -331,7 +331,6 @@ function profilePatch(options, dataDir) {
     `    dataDir: ${JSON.stringify(dataDir)}`,
     `    cliPath: ${JSON.stringify(options.mnemonBinary)}`,
     `    routingGuidance: ${options.routingGuidance === 'on'}`,
-    `    displayMode: sidebar`,
     `    lifecycleEnabled: true`,
     `    recallMode: ${options.recallMode}`,
     `    writebackMode: ${options.writebackMode}`,

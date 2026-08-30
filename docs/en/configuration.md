@@ -14,13 +14,12 @@ The default is commonly `~/.dsh/settings.yaml`. All current settings are marked 
 
 Executing turns retain their pinned runtime. An already-dispatched child retains its delegated runtime until that activation is disposed, even if its parent has finished; later parent turns and newly delegated activations use the new generation. Saving settings does not silently expand an existing task's Recall authority.
 
-The Web settings page edits `displayMode`, `storageScope`, the independent `runtimeUserScope`, `dataDir`, Mnemon Native's Ollama embedding override, one master switch for each of the three memory Layers, the background task Agent model route, and the Turn memory and Save-to-memory switches under `mnemon-ui`. Global and Workspace define the scope of the complete memory system; the USER.md profile may explicitly remain global while project memory follows that scope. Mnemon Native owns its Custom data location, embedding runtime, and ZIP backup/migration controls. Each external provider has a collapsible service configuration for reusable endpoints, credentials, or executables. Enabling or saving it discovers the provider's existing namespaces and maps them into Memory Spaces → Overview; disabling it removes those local mappings without deleting provider data. Other advanced settings must be changed directly in YAML.
+The Web settings page edits `storageScope`, the independent `runtimeUserScope`, `dataDir`, Mnemon Native's Ollama embedding override, one master switch for each of the three memory Layers, the background task Agent model route, and the Turn memory and Save-to-memory switches under `mnemon-ui`. Global and Workspace define the scope of the complete memory system; the USER.md profile may explicitly remain global while project memory follows that scope. Mnemon Native owns its Custom data location, embedding runtime, and ZIP backup/migration controls. Each external provider has a collapsible service configuration for reusable endpoints, credentials, or executables. Enabling or saving it discovers the provider's existing namespaces and maps them into Memory Spaces → Overview; disabling it removes those local mappings without deleting provider data. Other advanced settings must be changed directly in YAML.
 
 ## Complete Example
 
 ```yaml
 mnemon:
-  displayMode: sidebar # sidebar | buildin
   storageScope: global # global | workspace | custom
   runtimeUserScope: storage # storage | global
   # dataDir: ~/mnemon-data       # required for custom
@@ -66,7 +65,6 @@ mnemon:
 
 | Setting | Default | Range | Implementation Semantics |
 |---|---:|---|---|
-| `displayMode` | `sidebar` | `sidebar` / `buildin` | `sidebar` mounts the dedicated sidebar workbench; `buildin` restores the native DSH conversation-area tab; saving switches live and never mounts both entries together |
 | `storageScope` | `global` | `global` / `workspace` / `custom` | Controls the root for Runtime, Documents, Memory Spaces, and reserved state as one unit |
 | `runtimeUserScope` | `storage` | `storage` / `global` | Keeps USER.md in the selected storage root, or overlays the global USER.md while project MEMORY.md and the other layers stay selected-scope |
 | `dataDir` | unset | absolute path, `~`, or `~/...` | Required for `custom`; legacy configurations that set only this option automatically resolve to `custom` |
@@ -90,7 +88,7 @@ mnemon:
 | `recallMode` | `guided` | `guided` / `off` | Whether to inject one durable on-demand recall cue per session; does not remove explicit recall |
 | `writebackMode` | `guided` | `guided` / `off` | Whether to inject one durable hot-memory cue per session and enable scored, dirty-admitted background review; does not remove explicit writes |
 | `idleReviewMs` | `30000` | 5000–600000 ms | Required continuous idle time after the threshold is reached |
-| `tabEnabled` | `true` | boolean | Whether to mount the Web entry selected by `displayMode`; Host RPC, commands, and Agent tools remain registered when off |
+| `tabEnabled` | `true` | boolean | Whether to mount the Sidebar entry and workbench; Host RPC, commands, and Agent tools remain registered when off |
 | `writeEnabled` | `true` | boolean | Whether to expose semantic write tools, write RPC, and write commands |
 | `taskAgentModel` | `{ mode: inherit }` | `inherit` / `fixed` | Model route for independent task Agents used by AI metadata, Agent Query, memory distillation, and Document archiving, plus the idle-review worker; `fixed` requires both `provider` and `model` and also pins their bounded workers for write, answer, provider placement, migration, compaction, archive, and metadata maintenance. Conversation Recall and Related are direct Host reads and do not use this route |
 | `remoteAccess` | `read-only` | `read-only` / `trusted-host` | DSH 0.1.1-rc.2 compatibility policy for non-loopback Mnemon management RPC; startup-only and ignored by DSH 0.1.2-alpha.1 |
@@ -332,13 +330,15 @@ routingGuidance=false
   -> runtime-memory context remains
 ```
 
-## Display Mode and the `tabEnabled` UI Switch
+## Sidebar and the `tabEnabled` UI Switch
 
-`displayMode=sidebar` (the default) mounts the “Memory System” sidebar entry and its dedicated center-column workbench with a minimal, logo-free skin aligned with official DSH panels. `displayMode=buildin` instead registers the original DSH `conversation.view` tab and preserves its existing visuals. The modes share the functional workbench while keeping appearance definitions isolated. Saving first disposes the active entry and then mounts the target, so the two modes never appear simultaneously.
+Memory System uses only the Sidebar entry, opening a dedicated center-column workbench with a minimal, logo-free skin aligned with official DSH panels. Settings no longer offer a display-mode selector, and the plugin never registers a `conversation.view` tab.
 
 The sidebar entry is an explicit navigation action: clicking it again keeps the workspace open; use “Back to conversation” to close it. Switching to the task board or SSH synchronizes both visibility and entry state, so a missed peer activation notification cannot prevent reopening Memory System.
 
-`tabEnabled=false` removes the currently selected Web entry live. Host RPC, commands, and tools remain registered across display-mode and enablement changes so an Agent or command already in progress stays valid.
+Upgrade compatibility: legacy `displayMode` fields in YAML or user settings, including `buildin`, are ignored. Existing installations start without manual cleanup, and no memory data is migrated or deleted. This field is no longer an effective setting, and new settings RPC mutations cannot write it.
+
+`tabEnabled=false` removes the Sidebar entry and workbench live; enabling it again always restores Sidebar. Host RPC, commands, and tools remain registered, so an Agent or command already in progress stays valid. Turn memory and Save to memory remain independently controlled by `mnemon-ui`.
 
 ## Profile Patch Overrides
 

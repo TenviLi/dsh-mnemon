@@ -3,10 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, waitFor } from '@testing-library/react'
 
 vi.mock('../src/client/MnemonView.tsx', () => ({
-  MnemonView: ({ sessionId, workspaceId, workspaceSelection, surface, t, locale, onClose }: {
+  MnemonView: ({ sessionId, workspaceId, workspaceSelection, t, locale, onClose }: {
     sessionId?: string
     workspaceId?: string
-    surface?: 'sidebar' | 'buildin'
     t?: (key: string) => string
     locale?: 'zh' | 'en'
     onClose?: () => void
@@ -17,7 +16,7 @@ vi.mock('../src/client/MnemonView.tsx', () => ({
       onSelect(id: string): void
       onAlign(): void
     }
-  }) => <div data-testid="mnemon-panel-content" data-workspace-id={workspaceId} data-effective-workspace-id={workspaceSelection?.effectiveWorkspaceId} data-surface={surface} data-locale={locale}>
+  }) => <div data-testid="mnemon-panel-content" data-workspace-id={workspaceId} data-effective-workspace-id={workspaceSelection?.effectiveWorkspaceId} data-locale={locale}>
     <h1>{t?.('tab.label')}</h1>
     <span>{sessionId ?? 'no-session'}</span>
     <select aria-label="workspace-test-selector" value={workspaceSelection?.selectedWorkspaceId ?? ''} onChange={event => workspaceSelection?.onSelect(event.target.value)}>
@@ -159,7 +158,6 @@ describe('Mnemon sidebar workspace', () => {
     expect(document.querySelector('[data-chat-content]')).not.toBeNull()
     await waitFor(() => expect(document.querySelector('[data-testid="mnemon-panel-content"] span')?.textContent).toBe('session-1'))
     expect(document.querySelector('[data-testid="mnemon-panel-content"]')?.getAttribute('data-workspace-id')).toBe('workspace-1')
-    expect(document.querySelector('[data-testid="mnemon-panel-content"]')?.getAttribute('data-surface')).toBe('sidebar')
 
     fireEvent.click(entry!)
     expect(document.documentElement.hasAttribute('data-dsh-mnemon-active')).toBe(true)
@@ -334,7 +332,6 @@ describe('Mnemon sidebar workspace', () => {
     const entry = document.querySelector<HTMLButtonElement>('[data-dsh-mnemon-entry]')
     expect(entry).not.toBeNull()
     await waitFor(() => expect(document.querySelector('[data-testid="mnemon-panel-content"]')).not.toBeNull())
-    expect(document.querySelector('[data-testid="mnemon-panel-content"]')?.getAttribute('data-surface')).toBe('sidebar')
     expect(document.querySelector('[data-chat-content]')).not.toBeNull()
 
     fireEvent.click(entry!)

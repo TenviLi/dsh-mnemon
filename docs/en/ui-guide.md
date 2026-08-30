@@ -209,6 +209,6 @@ Remote Provider workspaces, users, banks, projects, containers, and URIs are ind
 - A Memory Space toggle controls only whether dsh-mnemon includes it in read routing. It is not the Mnemon CLI default Store.
 - Mnemon Native physical deletion requires confirmation. External spaces use Disconnect and leave Provider data untouched.
 - Pages load by region; a local error never blocks unrelated data or creates a wall of spinners.
-- Buildin preserves its established layout and visuals. The same concepts apply, though control positions differ.
+- The workbench always opens through Sidebar; Turn memory and Save to memory remain conversation shortcuts.
 
 Next: [Capability map](./capabilities.md) · [Getting Started](./getting-started.md) · [Provider guide](./memory-providers.md) · [Configuration](./configuration.md)

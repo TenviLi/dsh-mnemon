@@ -211,6 +211,6 @@ Mnemon 自己的自定义目录、备份与迁移留在 Mnemon 专属折叠区�
 - 记忆体开关只决定它是否参与 dsh-mnemon 读取路由，不等于 Mnemon CLI 默认 Store。
 - Mnemon Native 物理删除需要二次确认；三方记忆体使用“断开”，不删除 Provider 数据。
 - 页面按区域异步加载；局部错误不阻塞其他区域，也不会堆叠多个转圈。
-- Buildin 保留既有布局与视觉，功能心智相同，但控件位置可能不同。
+- 工作台统一从 Sidebar 打开；本回合记忆和存入记忆仍作为对话内快捷入口。
 
 下一步：[能力地图](./capabilities.md) · [快速开始](./getting-started.md) · [Provider 指南](./memory-providers.md) · [配置参考](./configuration.md)

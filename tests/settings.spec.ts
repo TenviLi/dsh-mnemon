@@ -41,7 +41,7 @@ describe('Mnemon settings bridge', () => {
     const ops = [
       { op: 'set', path: ['store'], value: 'settings-store' },
       { op: 'set', path: ['idleReviewMs'], value: 45000 },
-      { op: 'set', path: ['displayMode'], value: 'buildin' },
+      { op: 'set', path: ['tabEnabled'], value: false },
       { op: 'set', path: ['runtimeUserScope'], value: 'global' },
       { op: 'set', path: ['embedding'], value: { enabled: true, endpoint: 'http://127.0.0.1:11434', model: 'qwen3-embedding:0.6b' } },
       { op: 'set', path: ['runtimeMemory'], value: { memoryLimitBytes: 20480, userLimitBytes: 10240, maintenanceMaxTokens: 32768 } },
@@ -49,17 +49,17 @@ describe('Mnemon settings bridge', () => {
     ]
     const written = await handler('mutate', { expectedRevision: 2, ops })
     expect(mutate).toHaveBeenCalledWith('mnemon', ops, 2)
-    expect(written).toEqual(expect.objectContaining({ ok: true, value: expect.objectContaining({ revision: 3, user: { store: 'settings-store', idleReviewMs: 45000, displayMode: 'buildin', runtimeUserScope: 'global', embedding: { enabled: true, endpoint: 'http://127.0.0.1:11434', model: 'qwen3-embedding:0.6b' }, runtimeMemory: { memoryLimitBytes: 20480, userLimitBytes: 10240, maintenanceMaxTokens: 32768 }, taskAgentModel: { mode: 'fixed', provider: 'deepseek', model: 'deepseek-chat' } } }) }))
+    expect(written).toEqual(expect.objectContaining({ ok: true, value: expect.objectContaining({ revision: 3, user: { store: 'settings-store', idleReviewMs: 45000, tabEnabled: false, runtimeUserScope: 'global', embedding: { enabled: true, endpoint: 'http://127.0.0.1:11434', model: 'qwen3-embedding:0.6b' }, runtimeMemory: { memoryLimitBytes: 20480, userLimitBytes: 10240, maintenanceMaxTokens: 32768 }, taskAgentModel: { mode: 'fixed', provider: 'deepseek', model: 'deepseek-chat' } } }) }))
   })
 
-  it('rejects fields outside the plugin schema', async () => {
+  it.each(['other', 'displayMode'])('rejects unsupported settings field %s', async field => {
     const settings = {
       writable: true,
       register: vi.fn(),
       mutate: vi.fn(),
       describe: () => [{ ns: 'mnemon', value: {}, revision: 0, applies: 'restart' as const }],
     } as unknown as HostSettingsService
-    const response = await createSettingsHandler(settings)('mutate', { ops: [{ op: 'set', path: ['other'], value: true }] })
+    const response = await createSettingsHandler(settings)('mutate', { ops: [{ op: 'set', path: [field], value: field === 'displayMode' ? 'buildin' : true }] })
     expect(response).toEqual(expect.objectContaining({
       ok: false,
       error: expect.objectContaining({ code: 'settings-rejected', details: { ns: 'mnemon' } }),

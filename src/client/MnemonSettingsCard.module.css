@@ -78,7 +78,6 @@
   gap: 8px;
 }
 
-.displayGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 .topologyUnavailable {
   margin: 0;

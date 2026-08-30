@@ -9,13 +9,12 @@
 | 入口 | 默认 | 说明 |
 |---|---:|---|
 | Sidebar | 是 | 左侧栏独立“记忆系统”工作台；状态、运行时、档案、记忆体四个一级标签 |
-| Buildin | 否 | 原有 `conversation.view` 内嵌标签页，保留既有视觉 |
 | 本回合记忆 | 是 | 已完成回合的记忆工具摘要；展开后按工具名跳到对应页面 |
 | 存入记忆 | 是 | 已定稿助手回复旁的操作；确认后调用监督写入 |
 | `/mnemon` | — | 对话命令入口 |
 | 模型工具 | — | Root Agent 的结构化读写入口 |
 
-Sidebar 与 Buildin 实时互斥挂载，共享功能、数据和 Host 服务。对话内两个入口可在 `mnemon-ui` 设置中分别关闭。
+Sidebar 是唯一的工作台入口，由 `tabEnabled` 控制显示。对话内两个快捷入口可在 `mnemon-ui` 设置中分别关闭。
 
 ## Profile 能力面
 
@@ -24,7 +23,7 @@ Sidebar 与 Buildin 实时互斥挂载，共享功能、数据和 Host 服务。
 | 运行时上下文与生命周期提示 | 是 | 是 |
 | 模型工具与独立任务 Agent | 是 | 是 |
 | `workspace` 范围按 Agent cwd 路由 | 是 | 是 |
-| Sidebar / Buildin / 对话操作 | 是 | 否 |
+| Sidebar / 对话操作 | 是 | 否 |
 | Host 到客户端 RPC | 是 | 否 |
 | Agent idle 后的延迟评分审查 | Host 持续运行时执行 | 一次性进程退出时取消 |
 
@@ -237,4 +236,4 @@ Host 发布 Cordis 服务 `mnemonMemory: MemoryBoot`（`MemoryExtensionHost` 保
 
 ## 国际化范围
 
-主要 Sidebar / Buildin 工作台、设置与对话内入口支持中文和英文，并跟随 DSH locale 实时切换。品牌名、工具名和配置键不翻译。`/mnemon` 命令、模型工具卡、部分 Host 错误与兼容元数据尚未完全国际化。
+主要 Sidebar 工作台、设置与对话内入口支持中文和英文，并跟随 DSH locale 实时切换。品牌名、工具名和配置键不翻译。`/mnemon` 命令、模型工具卡、部分 Host 错误与兼容元数据尚未完全国际化。
