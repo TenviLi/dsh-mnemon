@@ -24,10 +24,10 @@ pnpm --dir deepseek-harness run build:lib
 
 pnpm install --frozen-lockfile
 DSH_SOURCE_ROOT=/absolute/path/to/deepseek-harness pnpm run dsh:link-source
-pnpm run verify
+pnpm_config_verify_deps_before_run=false pnpm run verify
 ```
 
-链接命令会先校验每个 package 名称与 alpha 版本，在生成的 `node_modules` 中记录现有 registry 直连，然后才执行替换；它不会修改 `package.json` 或 `pnpm-lock.yaml`。验证后运行 `pnpm run dsh:restore-registry` 即可精确恢复所记录的链接；普通的 up-to-date install 会保留人工替换的链接。兼容工作覆盖已移除的 client runtime、由 controller/renderer 新归属的客户端服务、可扩展 locale ID、Workspace snapshot 变化，以及无分支的双世代 Host RPC 注册。
+链接命令会先校验每个 package 名称与 alpha 版本，在生成的 `node_modules` 中记录现有 registry 直连，然后才执行替换；它不会修改 `package.json` 或 `pnpm-lock.yaml`。对这一显式源码覆盖，应按上面的命令关闭 pnpm 11 的运行前自动依赖安装；否则它可能在验证前静默还原 registry 包。验证后运行 `pnpm_config_verify_deps_before_run=false pnpm run dsh:restore-registry` 即可精确恢复记录的链接。兼容工作覆盖已移除的 client runtime、由 controller/renderer 新归属的客户端服务、可扩展 locale ID、Workspace snapshot 变化，以及无分支的双世代 Host RPC 注册。
 
 ### 兼容性研究结论
 
@@ -74,7 +74,8 @@ src/
 +-- runtime-memory.ts         # hot-memory authority
 +-- documents.ts              # managed Documents
 +-- subagent.ts               # bounded workers
-+-- lifecycle.ts              # root-Agent hooks
++-- lifecycle.ts              # root 钩子与子 Agent 权限所有权
++-- agent-memory-turn.ts      # 回合 pin 与子 Agent 委托保留
 +-- review-activity.ts        # activity score
 +-- tools.ts / commands.ts    # model and human interfaces
 +-- rpc.ts / settings.ts      # Web bridges
@@ -134,12 +135,13 @@ Host 将所有 package dependency 保持为 external。Client 将 React、ReactD
 - Documents 路径、frontmatter、搜索、LRU、归档与冲突；
 - worker 工具隔离、schema 子集、结构化回执；
 - 生命周期 cue、评分、idle debounce、取消和水位保留；
+- 异步子 Agent 的 View / 运行图保留、逐回合预算、缓存隔离、嵌套委托、取消、回收和销毁；
 - 真实 rc.2 / alpha Connection 注册、RPC authority 或认证、只读行为和设置 revision；
 - Web 工作台、双语文案和关键交互；
 - 不依赖 Web 专有服务的核心激活，以及 Headless 按 Agent cwd 路由；
 - Client/Host 源码边界、确定性构建 hash、发布包内容、exports 和 TypeScript 解析。
 
-这些主要是临时目录、fake runner 和 mock Host 集成测试。此外，`verify:headless` 会构建包、安装到隔离的真实 DSH Headless profile、启动本地模拟模型，并断言代表性 Mnemon 工具进入模型请求。真实 DSH + Mnemon WebUI 的自动化端到端测试仍是独立工作。
+这些主要是临时目录、fake runner 和 mock Host 集成测试。`async-subagent-host.spec.ts` 额外使用真实 DSH Agent loop、scoped event、工具流水线、continuable subagent manager 和 JSONL 持久化，仅把模型与记忆 Provider 替换为脚本模拟；验证父回合结束并切换运行图后的延迟 Recall，以及冷恢复后的新权限与预算。其 DSH 直接测试依赖保持既有已发布基线，并纳入 alpha 源码链接覆盖。`verify:headless` 会构建包、安装到隔离的真实 DSH Headless profile、启动本地模拟模型，并断言代表性 Mnemon 工具进入模型请求。真实 DSH + Mnemon WebUI 的自动化端到端测试仍是独立工作。
 
 ## v0.3 发布 Benchmark
 

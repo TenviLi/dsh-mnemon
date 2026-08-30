@@ -18,11 +18,11 @@ import { MnemonSubagentCoordinator, type DelegatedWriteResult } from './subagent
 import { scoreReviewActivity } from './review-activity.ts'
 import { TurnActivityProjection, type TurnMemoryActivity, type TurnMemoryActivitySnapshot } from './activity.ts'
 import { applyAgentMemoryViewWake, memoryPromptText, registerAgentMemoryViewContext } from './guidance.ts'
+import { AgentMemoryTurn, agentMemoryScope, openAgentTurn, type DelegatedMemoryView } from './agent-memory-turn.ts'
 import type { AssistantMessageText, LifecycleAgentSnapshot, LifecycleCounters, LifecyclePhase, LifecycleSnapshot, ReviewActivityScore, TaskAgentModelCatalog } from './shared/contracts.ts'
 import type { PreparedMemoryPlacement } from './provider-placement.ts'
-import type { MemoryOperationScope, MemoryTurnContext, MemoryWake } from '../packages/contracts/src/index.ts'
-import type { MemoryTurnViewManager } from '../packages/kernel/src/index.ts'
-import type { MnemonAgentRuntimeSource, MnemonRuntimeGraph } from './live-runtime.ts'
+import type { MemoryWake } from '../packages/contracts/src/index.ts'
+import type { MnemonAgentRuntimeSource } from './live-runtime.ts'
 
 type AgentRuntimeSource = Pick<MnemonAgentRuntimeSource, 'forAgent' | 'bindAgentRuntime'>
 
@@ -235,7 +235,6 @@ class MnemonAgentLifecycle {
   private lastPhase: LifecyclePhase = 'idle'
   private lastAt: string | undefined
   private lastError: string | undefined
-  private pinnedView: { turn: number; manager: MemoryTurnViewManager; context: MemoryTurnContext; releaseRuntime: () => void } | undefined
 
   constructor(
     readonly agent: HostAgent,
@@ -243,7 +242,7 @@ class MnemonAgentLifecycle {
     private readonly config: ResolvedConfig,
     private readonly counters: LifecycleCounters,
     source: LifecycleAgentSnapshot['startSource'],
-    private readonly runtimeSource?: AgentRuntimeSource,
+    private readonly memoryTurn?: AgentMemoryTurn,
   ) {
     this.startSource = source
   }
@@ -315,7 +314,7 @@ class MnemonAgentLifecycle {
   }
 
   memoryWake(): MemoryWake | undefined {
-    const pinned = this.pinnedView
+    const pinned = this.memoryTurn?.current
     return pinned === undefined ? undefined : pinned.manager.wake(pinned.context.viewId)
   }
 
@@ -406,55 +405,17 @@ class MnemonAgentLifecycle {
     if (context.agent !== undefined && context.agent.id !== this.agent.id) return next()
     const turn = this.openTurn()
     if (turn === undefined || context.signal?.aborted === true) return next()
-    await this.pinView(turn)
+    await this.memoryTurn?.begin(turn, context.signal)
     const assembled = await next()
     return applyAgentMemoryViewWake(assembled, this.memoryWake())
   }
 
   private openTurn(): number | undefined {
-    let open: number | undefined
-    for (const event of this.agent.session.events) {
-      const turn = eventTurn(event)
-      if (event.type === 'turn/start' && turn !== undefined) open = turn
-      else if (event.type === 'turn/end' && turn === open) open = undefined
-    }
-    return open
-  }
-
-  private async pinView(turn: number): Promise<void> {
-    if (this.pinnedView?.turn === turn) return
-    this.releaseView()
-    const graph: MnemonRuntimeGraph | undefined = this.runtimeSource?.forAgent(this.agent)
-    const manager = graph?.memoryViews
-    if (manager === undefined || graph === undefined || this.runtimeSource === undefined) return
-    const cwd = this.agent.session.header?.cwd?.trim()
-    const scope: MemoryOperationScope = {
-      storage: this.config.storageScope,
-      ...(cwd === undefined || cwd === '' ? {} : { workspaceId: resolve(cwd) }),
-      sessionId: this.agent.id,
-      agentId: this.agent.id,
-    }
-    const context = await manager.beginTurn(`${this.agent.id}:${turn}`, scope)
-    let releaseRuntime: (() => void) | undefined
-    try {
-      releaseRuntime = this.runtimeSource.bindAgentRuntime(this.agent.id, graph)
-      this.pinnedView = { turn, manager, context, releaseRuntime }
-    } catch (error) {
-      manager.endTurn(context.turnId)
-      releaseRuntime?.()
-      throw error
-    }
+    return openAgentTurn(this.agent)
   }
 
   private releaseView(turn?: number): void {
-    const pinned = this.pinnedView
-    if (pinned === undefined || (turn !== undefined && pinned.turn !== turn)) return
-    this.pinnedView = undefined
-    try {
-      pinned.manager.endTurn(pinned.context.turnId)
-    } finally {
-      pinned.releaseRuntime()
-    }
+    this.memoryTurn?.end(turn)
   }
 
   private async finishTurn(payload: TurnStoppingPayload): Promise<void> {
@@ -464,7 +425,8 @@ class MnemonAgentLifecycle {
   private sessionEvent(session: HostAgent['session'], event: HostSessionEvent): void {
     if (session !== this.agent.session || event.type !== 'turn/end') return
     const turn = eventTurn(event)
-    const pinned = turn === undefined || this.pinnedView?.turn !== turn ? undefined : this.pinnedView
+    const current = this.memoryTurn?.current
+    const pinned = turn === undefined || current?.turn !== turn ? undefined : current
     if (pinned === undefined) return
     this.releaseView(turn)
     void pinned.manager.reconcile(pinned.context.scope).catch(error => this.fail(error))
@@ -609,6 +571,8 @@ class MnemonAgentLifecycle {
 /** DSH-native owner for per-agent Mnemon lifecycle hooks and UI-triggered LLM work. */
 export class MnemonLifecycle {
   private readonly owners = new Map<HostAgent, { lifecycle: MnemonAgentLifecycle; dispose: () => unknown }>()
+  private readonly children = new Map<HostAgent, () => unknown>()
+  private readonly memoryTurns = new Map<HostAgent, AgentMemoryTurn>()
   private readonly counters: LifecycleCounters = { primes: 0, recallCues: 0, writebackCues: 0, supervisedRequests: 0, failures: 0 }
   /** Creation ids reserved before DSH publishes clean task-root Agents. */
   private readonly taskAgentIds = new Set<string>()
@@ -627,8 +591,11 @@ export class MnemonLifecycle {
     for (const agent of this.ctx.agents.roots()) this.install(agent, 'adopted')
     return () => {
       stopCreated()
+      for (const dispose of [...this.children.values()].reverse()) dispose()
       for (const owner of [...this.owners.values()].reverse()) owner.dispose()
+      this.children.clear()
       this.owners.clear()
+      this.memoryTurns.clear()
     }
   }
 
@@ -981,8 +948,14 @@ export class MnemonLifecycle {
   }
 
   private install(agent: HostAgent, source: LifecycleAgentSnapshot['startSource']): void {
-    if (this.taskAgentIds.has(agent.id) || this.owners.has(agent) || !this.ctx.agents.roots().includes(agent)) return
-    const lifecycle = new MnemonAgentLifecycle(agent, this.coordinator, this.config, this.counters, source, this.runtimeSource)
+    if (this.taskAgentIds.has(agent.id) || this.owners.has(agent) || this.children.has(agent)) return
+    if (agent.session.header?.origin === 'subagent') {
+      this.installChild(agent)
+      return
+    }
+    if (!this.ctx.agents.roots().includes(agent)) return
+    const memoryTurn = this.runtimeSource === undefined ? undefined : new AgentMemoryTurn(agent, this.runtimeSource)
+    const lifecycle = new MnemonAgentLifecycle(agent, this.coordinator, this.config, this.counters, source, memoryTurn)
     let dispose: () => unknown
     dispose = agent.ctx.effect(() => {
       const stop = lifecycle.start()
@@ -990,11 +963,77 @@ export class MnemonLifecycle {
         ? () => {}
         : registerAgentMemoryViewContext(agent, () => lifecycle.memoryWake())
       return () => {
-        stopRuntimeContext()
-        stop()
-        if (this.owners.get(agent)?.dispose === dispose) this.owners.delete(agent)
+        try {
+          stopRuntimeContext()
+          stop()
+        } finally {
+          memoryTurn?.dispose()
+          if (this.owners.get(agent)?.dispose === dispose) this.owners.delete(agent)
+          if (this.memoryTurns.get(agent) === memoryTurn) this.memoryTurns.delete(agent)
+        }
       }
     }, 'dsh-mnemon.lifecycle()')
     this.owners.set(agent, { lifecycle, dispose })
+    if (memoryTurn !== undefined) this.memoryTurns.set(agent, memoryTurn)
+  }
+
+  /** Child memory ownership is independent of root-only reminders and idle review. */
+  private installChild(agent: HostAgent): void {
+    const runtime = this.runtimeSource
+    const parentId = agent.session.header?.parentSession?.trim()
+    const parent = parentId === undefined || parentId === '' ? undefined : this.ctx.agents.get(parentId)
+    // A lineage string alone is not authority. Orphans get no model Recall pin.
+    if (runtime === undefined || parent === undefined || parent === agent) return
+    const parentMemory = this.memoryTurns.get(parent)
+    let delegation: DelegatedMemoryView
+    if (parentMemory !== undefined) {
+      delegation = parentMemory.delegate()
+    } else {
+      const graph = runtime.forAgent(parent)
+      const parentPin = graph.memoryViews.activeTurn(parent.id)
+      delegation = {
+        graph,
+        scope: parentPin?.scope ?? agentMemoryScope(parent, graph),
+        ...(parentPin === undefined ? {} : { viewId: parentPin.viewId }),
+      }
+    }
+    let dispose: () => unknown
+    dispose = agent.ctx.effect(() => {
+      const memory = new AgentMemoryTurn(agent, runtime, delegation)
+      this.memoryTurns.set(agent, memory)
+      const stops: Array<() => unknown> = []
+      const cleanup = () => {
+        try {
+          for (const stop of stops.reverse()) stop()
+        } finally {
+          try { memory.dispose() } finally {
+            if (this.memoryTurns.get(agent) === memory) this.memoryTurns.delete(agent)
+            if (this.children.get(agent) === dispose) this.children.delete(agent)
+          }
+        }
+      }
+      try {
+        stops.push(agent.ctx.on('agent/session-start', (() => memory.end()) as never))
+        stops.push(agent.ctx.on('system-prompt/assemble', (async (_assembly: PromptAssembly, context: PromptAssemblyContext, next: () => Promise<PromptAssembly>) => {
+          if (context.agent !== undefined && context.agent !== agent) return next()
+          const turn = openAgentTurn(agent)
+          if (turn !== undefined) await memory.begin(turn, context.signal)
+          return next()
+        }) as never))
+        stops.push(agent.ctx.on('agent/pre-step', (async (payload: PreStepPayload, next: () => Promise<HostPreStepDecision>) => {
+          const decision = await next()
+          if (decision.kind === 'reject' || payload.signal.aborted) memory.end(payload.turn)
+          return decision
+        }) as never))
+        stops.push(agent.ctx.on('session/event', ((session: HostAgent['session'], event: HostSessionEvent) => {
+          if (session === agent.session && event.type === 'turn/end') memory.end(eventTurn(event))
+        }) as never))
+      } catch (error) {
+        cleanup()
+        throw error
+      }
+      return cleanup
+    }, 'dsh-mnemon.child-memory()')
+    this.children.set(agent, dispose)
   }
 }

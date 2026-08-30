@@ -53,6 +53,9 @@ jobs:
 
       - name: Verify against DSH alpha
         working-directory: dsh-mnemon
+        env:
+          # Keep the deliberate source overlay through nested pnpm scripts.
+          pnpm_config_verify_deps_before_run: 'false'
         run: pnpm run verify
 
   verify:

@@ -24,10 +24,10 @@ pnpm --dir deepseek-harness run build:lib
 
 pnpm install --frozen-lockfile
 DSH_SOURCE_ROOT=/absolute/path/to/deepseek-harness pnpm run dsh:link-source
-pnpm run verify
+pnpm_config_verify_deps_before_run=false pnpm run verify
 ```
 
-The link command validates every package name and alpha version, records the existing direct registry links under generated `node_modules`, and only then replaces them. It does not edit `package.json` or `pnpm-lock.yaml`. Run `pnpm run dsh:restore-registry` afterward to restore exactly those recorded links; an ordinary up-to-date install preserves manually replaced links. The compatibility work covers the removed client runtime, controller/renderer-owned client services, extensible locale IDs, the Workspace snapshot change, and the branch-free dual-generation Host RPC registration.
+The link command validates every package name and alpha version, records the existing direct registry links under generated `node_modules`, and only then replaces them. It does not edit `package.json` or `pnpm-lock.yaml`. Disable pnpm 11's automatic pre-run dependency installation for this intentional overlay, as shown above; otherwise it can silently restore registry packages before verification. Run `pnpm_config_verify_deps_before_run=false pnpm run dsh:restore-registry` afterward to restore exactly the recorded links. The compatibility work covers the removed client runtime, controller/renderer-owned client services, extensible locale IDs, the Workspace snapshot change, and the branch-free dual-generation Host RPC registration.
 
 ### Compatibility findings
 
@@ -74,7 +74,8 @@ src/
 +-- runtime-memory.ts         # hot-memory authority
 +-- documents.ts              # managed Documents
 +-- subagent.ts               # bounded workers
-+-- lifecycle.ts              # root-Agent hooks
++-- lifecycle.ts              # root hooks and child authority ownership
++-- agent-memory-turn.ts      # turn pins and retained child delegation
 +-- review-activity.ts        # activity score
 +-- tools.ts / commands.ts    # model and human interfaces
 +-- rpc.ts / settings.ts      # Web bridges
@@ -134,12 +135,13 @@ The existing Vitest suites cover:
 - Document paths, frontmatter, search, LRU, archiving, and conflicts;
 - worker tool isolation, the schema subset, and structured receipts;
 - lifecycle cues, scoring, idle debounce, cancellation, and watermark retention;
+- asynchronous child View/runtime retention, per-turn budgets, cache isolation, nested delegation, cancellation, collection, and disposal;
 - real rc.2 / alpha Connection registration, RPC authority or authentication, read-only behavior, and settings revisions;
 - the Web workspace, bilingual copy, and key interactions;
 - core activation without Web-only services and Agent-cwd routing for Headless;
 - Client/Host source boundaries, deterministic build hashes, package contents, exports, and TypeScript resolution.
 
-These are primarily integration tests using temporary directories, fake runners, and a mock Host. In addition, `verify:headless` builds the package, installs it into an isolated real DSH Headless profile, serves a local mock model, and asserts that representative Mnemon tools reach the model request. Automated end-to-end testing of the real DSH + Mnemon WebUI remains separate.
+These are primarily integration tests using temporary directories, fake runners, and a mock Host. `async-subagent-host.spec.ts` additionally runs the actual DSH Agent loop, scoped events, tool pipeline, continuable subagent manager, and JSONL persistence against a scripted model and fake memory Provider. It verifies delayed Recall after parent completion and a runtime swap, plus cold resume with fresh authority and budgets. Its direct DSH test dependencies remain on the existing published baseline and are included in the alpha source-link overlay. `verify:headless` builds the package, installs it into an isolated real DSH Headless profile, serves a local mock model, and asserts that representative Mnemon tools reach the model request. Automated end-to-end testing of the real DSH + Mnemon WebUI remains separate.
 
 ## v0.3 Release Benchmark
 

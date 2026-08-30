@@ -34,13 +34,15 @@ agent/pre-step(step=1)
 
 Source snapshotting does not run semantic recall. Prime only initializes routing state and does not run asynchronous CLI status queries.
 
-## Root Agent Recall
+A child captures and retains its live parent's pinned View and runtime at `agent/created`, before its driver starts. Its own turns pin that retained View, even after the parent finishes or moves to a newer generation. The delegation is released when the child activation is disposed. A cold resume receives a new delegation; an explicitly Host-created background child with no parent model turn snapshots a fresh scoped View. Children have their own turn authority without root-only cues or idle review. See [the authority lifecycle](./architecture.md#direct-recall-and-supervised-mutations).
+
+## Agent Recall
 
 ```text
 Root or child Agent calls mnemon_recall(query, optional memoryBodyIds)
           |
           v
-resolve the root turn (child follows parentSession)
+resolve the executing Agent's own turn pin and retained runtime
           |
           v
 read the pinned Memory Space Source state on the Host
@@ -68,12 +70,12 @@ answer without more Recall       explicitly submit one different query
           |
           v
 both attempts share at most 6 results, 1,200 characters each,
-and 4,800 total content characters for this root turn
+and 4,800 total content characters for this executing Agent turn
 ```
 
 The model-facing tool deliberately exposes no `category`, `source`, or `intent` filter: a guessed filter must not hide exact evidence. Recall is not forced: a root turn normally issues zero Provider queries. If the LLM calls it, the Host permits one initial query and at most one LLM-chosen, materially different refinement after evidence inspection. Same-query and concurrent repeats join or replay; a third distinct query replays the latest evidence without reaching a Provider. One Related traversal may follow, but only from a `memoryBodyId + id` admitted by either Recall attempt; its repeated result is replayed in the same way.
 
-Document search is separately bounded to four records, 2,600 query-local characters per record, and 6,000 content characters total. The model-facing Memory Space catalog is capped at 16 entries, and `mnemon_status` returns only a compact health aggregate. Full records, provider settings, paths, and per-Space statistics remain available to Web/RPC control-plane surfaces, not conversation history.
+Recall, Related and the single Documents search slot are budgeted per executing Agent turn. Parallel calls share that turn's state; sibling tasks, later turns and cold-resumed activations do not share cached evidence or consume each other's budget. Replays are restricted to the requested Memory Space subset. Document search is separately bounded to four records, 2,600 query-local characters per record, and 6,000 content characters total. The model-facing Memory Space catalog is capped at 16 entries, and `mnemon_status` returns only a compact health aggregate. Full records, provider settings, paths, and per-Space statistics remain available to Web/RPC control-plane surfaces, not conversation history.
 
 If the user has already supplied current facts, or the repository can answer directly, the Agent should not recall merely to “show memory.”
 

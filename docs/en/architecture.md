@@ -44,7 +44,7 @@ model recall(query, optional source ids) ---------------------+
 committed mutation --> MemoryReceipt --> next turn snapshots a new TurnView
 ```
 
-`TurnView` is a lightweight generation snapshot, not a knowledge tree. Eager Source text enters Wake exactly; routed Sources contribute one JSON-quoted cover under a shared budget, while their complete ID authority stays Host-side and digest-bound. Recall never needs a model-facing View ID, node ID, Zoom operation, capability token, or a second LLM worker. The Host derives the root turn (including through a child agent's `parentSession`), validates any requested IDs as a subset, then calls the data plane directly.
+`TurnView` is a lightweight generation snapshot, not a knowledge tree. Eager Source text enters Wake exactly; routed Sources contribute one JSON-quoted cover under a shared budget, while their complete ID authority stays Host-side and digest-bound. Recall never needs a model-facing View ID, node ID, Zoom operation, capability token, or a second LLM worker. The Host derives the executing Agent's own turn pin, validates any requested IDs as a subset, then calls the data plane directly. A child inherits a captured View, not permission to look up its parent's latest turn.
 
 Plans remain an internal transaction mechanism for guarded or multi-Layer operations:
 
@@ -140,11 +140,15 @@ Web additionally provides `workspaceRegistry`, client slots, and `connection`. T
 
 ## Direct Recall and Supervised Mutations
 
-Recall is a deterministic Host read under the Source authority pinned before System Prompt assembly. Root and child agents use the same path; a child resolves its root turn through `parentSession` and cannot acquire a newer or broader runtime graph:
+Recall is a deterministic Host read under the Source authority pinned before System Prompt assembly. Every executing Agent turn owns its pin. At `agent/created`, before the child driver runs, the Host resolves the live parent through `parentSession`, retains its pinned View, and binds the child to that runtime generation. The child keeps this delegation until its activation is disposed, independently of the parent's turn ending, later turns, View collection, or settings swaps. Nested children capture the same authority. Each child turn pins the retained View under its own identity; it does not receive root-only reminder or idle-review hooks.
+
+An explicitly Host-created background child with no active parent model turn snapshots its own View in the captured runtime/workspace scope. A cold-resumed child is a new activation and receives a new delegation from its live parent. A lineage string without a live parent grants nothing. Missing executing-turn authority fails closed; neither an active later parent turn nor `lastViewForAgent()` is a fallback.
+
+Recall/Related caches and the Documents search slot belong to the immutable turn-context object, not a reusable session ID or turn number. Siblings, later turns, and resumed activations have independent budgets, while parallel calls within one turn share a budget. Cache keys include the selected Memory Space subset, and replay never returns evidence outside that subset. Queued queries retain the admitted data-plane generation and check cancellation before Provider dispatch.
 
 ```text
 Agent calls mnemon_recall(query, optional memoryBodyIds)
-  -> resolve root turn and pinned TurnView manager
+  -> resolve the executing Agent's turn pin and retained runtime
   -> read Host-only Memory Space Source state
   -> reject requested IDs outside the pinned set
   -> MnemonService searches authorized Providers concurrently

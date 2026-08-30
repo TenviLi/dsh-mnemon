@@ -88,7 +88,7 @@ Choose only between two modes:
 - `eager` injects `wake` exactly. Reserve it for small context needed on virtually every model step, such as Runtime Memory.
 - `routed` treats `wake` as one compact cover. It is whitespace-normalized, limited to 500 characters, JSON-quoted as untrusted routing data, and competes within a 4 KiB routed-cover budget. A cover omitted by that budget remains fully authorized through Host-only state.
 
-The total Wake is limited to 64 KiB. There is no node tree, Zoom operation, or model-facing View ID. Recall takes only a query and optional Memory Space IDs; the Host derives the root turn's pinned Source state, validates the requested subset, and queries providers directly. Runtime-graph construction fails closed when an enabled automatic Layer has no MemorySource. Live registration and unloading apply the same readiness check transactionally across attached graphs. Co-locating a Layer and its Source gives the simplest atomic lifecycle.
+The total Wake is limited to 64 KiB. There is no node tree, Zoom operation, or model-facing View ID. Recall takes only a query and optional Memory Space IDs; the Host derives the executing Agent turn's pinned Source state, validates the requested subset, and queries providers directly. Children retain the parent's dispatch-time View and runtime, then pin their own turns; extensions must not use the parent's latest View as execution authority. Runtime-graph construction fails closed when an enabled automatic Layer has no MemorySource. Live registration and unloading apply the same readiness check transactionally across attached graphs. Co-locating a Layer and its Source gives the simplest atomic lifecycle.
 
 ## Let Cordis own the lifecycle
 

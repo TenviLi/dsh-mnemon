@@ -88,7 +88,7 @@ mnemon:
 - `eager` 原样注入 `wake`，只用于几乎每个模型步骤都需要的小型上下文，例如 Runtime Memory；
 - `routed` 把 `wake` 当作一个紧凑封面：统一空白、单个最多 500 字符、以“不可信路由数据”进行 JSON 引用，并共同受 4 KiB 封面预算约束。被预算省略的封面仍通过 Host-only state 保持完整权限。
 
-Wake 总长度上限为 64 KiB。系统不再维护节点树、Zoom 或模型可见的 View ID。Recall 只接收 query 与可选 Memory Space ID；Host 从 root 回合固定的 Source state 派生权限、校验请求子集，再直接查询 Provider。启用自动投影的 Layer 缺少 MemorySource 时，运行图构造会失败关闭；热注册与卸载在所有已附着图上事务性执行同一就绪检查。把 Layer 与 Source 放在同一扩展中，生命周期最简单。
+Wake 总长度上限为 64 KiB。系统不再维护节点树、Zoom 或模型可见的 View ID。Recall 只接收 query 与可选 Memory Space ID；Host 从正在执行的 Agent 回合固定的 Source state 派生权限、校验请求子集，再直接查询 Provider。子 Agent 保留父 Agent 派发时的 View 与运行图，再固定自己的回合；扩展不能把父 Agent 最新 View 当作执行权限。启用自动投影的 Layer 缺少 MemorySource 时，运行图构造会失败关闭；热注册与卸载在所有已附着图上事务性执行同一就绪检查。把 Layer 与 Source 放在同一扩展中，生命周期最简单。
 
 ## 通过 Cordis 拥有生命周期
 

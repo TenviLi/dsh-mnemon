@@ -265,6 +265,31 @@ describe('MemoryTurnViewManager', () => {
     expect(views.lastViewForAgent('unknown-agent')).toBeUndefined()
   })
 
+  it('pins an inherited View without consulting changed Sources and rejects repinning its authority', async () => {
+    let revision = 1
+    const snapshot = vi.fn(() => ({ revision: `source-${revision}`, wake: `runtime ${revision}` }))
+    const { views } = harness([{ layerId: 'runtime', mode: 'eager', snapshot }])
+    const first = await views.beginTurn('parent:1', { storage: 'global', sessionId: 'parent', agentId: 'parent' })
+    const release = views.retainView(first.viewId)
+    views.endTurn(first.turnId)
+    revision = 2
+    const later = await views.beginTurn('parent:2', { storage: 'global', sessionId: 'parent', agentId: 'parent' })
+    const scope = { storage: 'global' as const, sessionId: 'child', agentId: 'child' }
+    const child = views.pinTurn('child:1', scope, first.viewId)
+
+    expect(views.pinTurn('child:1', scope, first.viewId)).toBe(child)
+    expect(views.activeTurn('child')).toBe(child)
+    expect(views.wake(child.viewId).text).toBe('runtime 1')
+    expect(snapshot).toHaveBeenCalledTimes(2)
+    expect(() => views.pinTurn('child:1', scope, later.viewId)).toThrow('authority changed while pinned')
+    expect(() => views.pinTurn('child:1', { ...scope, workspaceId: 'outside' }, first.viewId)).toThrow('authority changed while pinned')
+    expect(() => views.pinTurn('unknown:1', scope, 'view-missing')).toThrow('View is unavailable')
+    expect(() => views.retainView('view-missing')).toThrow('View is unavailable')
+    views.endTurn(child.turnId)
+    release()
+    release()
+  })
+
   it('keeps last-valid Views isolated by snapshot scope', async () => {
     let failBeta = false
     const { views } = harness([{

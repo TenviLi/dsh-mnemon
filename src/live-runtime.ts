@@ -36,7 +36,7 @@ export interface MnemonRuntimeGraph {
 export interface MnemonAgentRuntimeSource {
   readonly config: ResolvedConfig
   forAgent(agent: HostAgent): MnemonRuntimeGraph
-  /** Pin every tool in one Agent turn to the same immutable runtime generation. */
+  /** Retain one runtime generation for an Agent turn or delegated child lifetime. */
   bindAgentRuntime(agentId: string, graph: MnemonRuntimeGraph): () => void
 }
 
