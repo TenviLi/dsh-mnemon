@@ -1,5 +1,9 @@
 .shell {
-  --mn-bg: var(--dsw-alias-bg-overlay, var(--dsw-alias-bg-base));
+  --mn-bg: var(--dsw-alias-bg-base);
+  --mn-backdrop: var(--dsw-alias-bg-overlay, var(--mn-bg));
+  /* Paint the canvas over its backing so transparent skins keep their surface
+     without replacing the official theme's opaque base with a floating layer. */
+  --mn-surface: linear-gradient(var(--mn-bg), var(--mn-bg)), linear-gradient(var(--mn-backdrop), var(--mn-backdrop)) var(--mn-bg);
   --mn-layer-1: var(--dsw-alias-bg-layer-1);
   --mn-layer-2: var(--dsw-alias-bg-layer-2);
   --mn-input: var(--dsw-specific-input-major, var(--dsw-alias-bg-layer-2));
@@ -23,7 +27,7 @@
   flex-direction: column;
   overflow: hidden;
   color: var(--mn-text);
-  background: var(--mn-bg);
+  background: var(--mn-surface);
   font: 13px/1.55 var(--mn-sans);
   -webkit-tap-highlight-color: transparent;
 }
@@ -45,7 +49,7 @@
   gap: clamp(12px, 2vw, 24px);
   padding: 8px 16px;
   border-bottom: 1px solid var(--mn-line);
-  background: var(--mn-bg);
+  background: var(--mn-surface);
 }
 
 .backButton {
@@ -122,7 +126,7 @@
 .spaceSummary small { color: var(--mn-faint); font-size: 9px; }
 
 /* The standalone panel owns its scrollport while the underlying conversation stays mounted. */
-.canvas { min-width: 0; flex: 1; overflow: auto; overscroll-behavior-x: contain; overscroll-behavior-y: auto; scroll-behavior: auto; -webkit-overflow-scrolling: touch; background: var(--mn-bg); }
+.canvas { min-width: 0; flex: 1; overflow: auto; overscroll-behavior-x: contain; overscroll-behavior-y: auto; scroll-behavior: auto; -webkit-overflow-scrolling: touch; background: var(--mn-surface); }
 .page { width: min(1320px, 100%); min-height: 100%; margin: 0 auto; padding: clamp(16px, 2vw, 24px) clamp(16px, 2.4vw, 28px) clamp(96px, 14vh, 150px); }
 .pageHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 16px; }
 .pageHeader h2 { margin: 2px 0 2px; font-size: 20px; line-height: 1.2; letter-spacing: -.025em; }

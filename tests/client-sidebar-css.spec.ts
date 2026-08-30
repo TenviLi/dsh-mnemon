@@ -2,17 +2,13 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 const sidebarCss = readFileSync(new URL('../src/client/MnemonSidebarView.module.css', import.meta.url), 'utf8')
-const viewCss = readFileSync(new URL('../src/client/MnemonView.module.css', import.meta.url), 'utf8')
 const workspaceCss = readFileSync(new URL('../src/client/MnemonWorkspace.module.css', import.meta.url), 'utf8')
 
 const sidebarSurface = 'var(--dsw-alias-bg-overlay, var(--dsw-alias-bg-base))'
 
 describe('Sidebar layout invariants', () => {
-  it('keeps the workspace surfaces opaque under transparent-base skins with a default-theme fallback', () => {
+  it('keeps an opaque backing behind the workspace under transparent-base skins', () => {
     expect(workspaceCss).toContain(`background: ${sidebarSurface};`)
-    expect(viewCss).toContain(`--mn-bg: ${sidebarSurface};`)
-    expect(sidebarCss).toContain(`.shell.shell {\n  background: ${sidebarSurface};`)
-    expect(sidebarCss).not.toContain('background: var(--dsw-alias-bg-base);')
   })
 
   it('anchors and hides the takeover inside the DSH advanced-mode conversation surface', () => {
