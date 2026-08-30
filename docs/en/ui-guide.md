@@ -14,6 +14,8 @@ The roughly 55-second recording leaves a clear pause on page transitions, dialog
 
 ## Interaction model
 
+The Memory System sidebar entry always opens its workspace, including after visiting Task Board or SSH. Clicking it again keeps the current page open; use Back to conversation to close it.
+
 Primary pages remain **Status, Runtime, Documents, Memory Spaces**. Memory Spaces adds **Overview, Recall, Content, Entities**, with **Remember** and **Distillation strategy** at the top right.
 
 | Visible action | What happens after the click | Independent task Agent? |

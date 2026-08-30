@@ -16,7 +16,7 @@ const ACTIVE_ATTR = 'data-dsh-mnemon-active'
 const TASKBOARD_ACTIVE_ATTR = 'data-dsh-taskboard-active'
 const SSH_ACTIVE_ATTR = 'data-dsh-ssh-active'
 const ACTIVATE_EVENT = 'dsh-panel-activate'
-const SIDEBAR_CONTEXT_SELECTOR = '[class*="sessionRow"], [class*="projectRow"], [class*="searchResultRow"], [class*="searchResultWorkspace"], [class*="newSession"]'
+const SIDEBAR_CONTEXT_SELECTOR = '[data-dsh-taskboard-entry], [data-dsh-ssh-entry], [class*="sessionRow"], [class*="projectRow"], [class*="searchResultRow"], [class*="searchResultWorkspace"], [class*="newSession"]'
 
 interface MnemonPanelProps {
   ctx: MnemonClientContext
@@ -105,9 +105,12 @@ function mountPanel(controller: MnemonWorkspaceController, ctx: MnemonClientCont
     // Current task-board and SSH releases only close for one another's event
     // names. Send both compatibility events before announcing Mnemon.
     suppressCompatibilityClose = true
-    document.dispatchEvent(new CustomEvent(ACTIVATE_EVENT, { detail: 'ssh' }))
-    document.dispatchEvent(new CustomEvent(ACTIVATE_EVENT, { detail: 'taskboard' }))
-    suppressCompatibilityClose = false
+    try {
+      document.dispatchEvent(new CustomEvent(ACTIVATE_EVENT, { detail: 'ssh' }))
+      document.dispatchEvent(new CustomEvent(ACTIVATE_EVENT, { detail: 'taskboard' }))
+    } finally {
+      suppressCompatibilityClose = false
+    }
     document.documentElement.removeAttribute(TASKBOARD_ACTIVE_ATTR)
     document.documentElement.removeAttribute(SSH_ACTIVE_ATTR)
     document.documentElement.setAttribute(ACTIVE_ATTR, '')
@@ -126,6 +129,18 @@ function mountPanel(controller: MnemonWorkspaceController, ctx: MnemonClientCont
     if (target instanceof Element && target.closest(SIDEBAR_CONTEXT_SELECTOR) !== null) controller.close()
   }
 
+  // DOM flags drive the released Web UI panels' actual visibility. Keep our
+  // private snapshot in sync even when a peer does not deliver its event.
+  const activeObserver = new MutationObserver(() => {
+    if (!controller.getSnapshot().open) return
+    const html = document.documentElement
+    if (!html.hasAttribute(ACTIVE_ATTR) || html.hasAttribute(TASKBOARD_ACTIVE_ATTR) || html.hasAttribute(SSH_ACTIVE_ATTR)) controller.close()
+  })
+  activeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: [ACTIVE_ATTR, TASKBOARD_ACTIVE_ATTR, SSH_ACTIVE_ATTR],
+  })
+
   const onAnchor = (): void => { controller.open() }
   document.addEventListener('click', onSidebarContextClick, true)
   document.addEventListener(ACTIVATE_EVENT, onOtherPanelActivate)
@@ -138,6 +153,7 @@ function mountPanel(controller: MnemonWorkspaceController, ctx: MnemonClientCont
     document.removeEventListener('click', onSidebarContextClick, true)
     document.removeEventListener(ACTIVATE_EVENT, onOtherPanelActivate)
     window.removeEventListener(MNEMON_ANCHOR_EVENT, onAnchor)
+    activeObserver.disconnect()
     waitObserver.disconnect()
     unsubscribe()
     document.documentElement.removeAttribute(ACTIVE_ATTR)

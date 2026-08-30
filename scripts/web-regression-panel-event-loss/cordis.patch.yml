@@ -1,0 +1,3 @@
+- insert:
+    - id: regression-panel-event-loss
+      name: dsh-mnemon-regression-panel-event-loss

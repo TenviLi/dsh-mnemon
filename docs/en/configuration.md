@@ -243,7 +243,7 @@ config.cliPath
            /usr/bin/mnemon
 ```
 
-An explicit `cliPath` is accepted as configured; if it is not executable, actual calls return a launch error. Automatically discovered Windows commands must be regular `.exe` files. `.cmd` and `.bat` wrappers are intentionally excluded because process execution does not use a shell.
+An explicit `cliPath` accepts either a path or a command name on PATH (for example, `mnemon`). Status checks and execution share the discovery rules and recognize CLI installation/removal on recheck without restarting DSH. If the explicitly configured command is unavailable, calls report a launch error rather than silently selecting another CLI. Automatically discovered Windows commands must be regular `.exe` files. `.cmd` and `.bat` wrappers are intentionally excluded because process execution does not use a shell.
 
 ## Compatibility Store Hint Precedence
 
@@ -333,6 +333,8 @@ routingGuidance=false
 ## Display Mode and the `tabEnabled` UI Switch
 
 `displayMode=sidebar` (the default) mounts the “Memory System” sidebar entry and its dedicated center-column workbench with a minimal, logo-free skin aligned with official DSH panels. `displayMode=buildin` instead registers the original DSH `conversation.view` tab and preserves its existing visuals. The modes share the functional workbench while keeping appearance definitions isolated. Saving first disposes the active entry and then mounts the target, so the two modes never appear simultaneously.
+
+The sidebar entry is an explicit navigation action: clicking it again keeps the workspace open; use “Back to conversation” to close it. Switching to the task board or SSH synchronizes both visibility and entry state, so a missed peer activation notification cannot prevent reopening Memory System.
 
 `tabEnabled=false` removes the currently selected Web entry live. Host RPC, commands, and tools remain registered across display-mode and enablement changes so an Agent or command already in progress stays valid.
 

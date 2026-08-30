@@ -170,6 +170,8 @@ The benchmark tables in the [v0.3.0 release notes](./releases/v0.3.0.md#benchmar
 
 ## Real WebUI Verification
 
+For the npm panel-navigation and CLI-status regression harness, see [npm Release Web UI Regressions](./testing-npm-regressions.md).
+
 Use an isolated environment before release to avoid contaminating personal memory:
 
 ```text

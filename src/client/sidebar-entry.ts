@@ -56,7 +56,7 @@ function createEntry(controller: MnemonWorkspaceController): { entry: HTMLButton
   const label = document.createElement('span')
   label.className = css.entryLabel ?? ''
   entry.append(icon, label)
-  entry.addEventListener('click', () => { controller.toggle() })
+  entry.addEventListener('click', () => { controller.open() })
   return { entry, label }
 }
 

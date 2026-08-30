@@ -170,6 +170,8 @@ node scripts/evaluation/v0.3/retrieval-benchmark.mjs \
 
 ## 真实 WebUI 验证
 
+npm 页面切换与 CLI 状态的隔离回归脚本见 [npm 发布版 Web UI 回归](./testing-npm-regressions.md)。
+
 发布前使用隔离环境，避免污染个人记忆：
 
 ```text
