@@ -231,7 +231,9 @@ describe('Mnemon DSH lifecycle integration', () => {
 
     // Still visible: a later first step must not duplicate it.
     const second = await value.preStep([userMessage()], 2)
-    expect(second.kind === 'enter' && second.messages).toHaveLength(1)
+    // Reminder not repeated; the snapshot rides along because this fixture's
+    // Wake text is turn-derived, so turn 2 renders a different revision.
+    expect(second.kind === 'enter' && second.messages).toHaveLength(2)
 
     // Rewind replaces the surface and drops the reminder. The append-only event
     // log still contains it, which is why presence cannot be read from there.
@@ -246,20 +248,23 @@ describe('Mnemon DSH lifecycle integration', () => {
   it('falls back to session-scoped state when the host publishes no surface', async () => {
     const value = fixture()
     const first = await value.preStep([userMessage()], 1)
-    expect(first.kind === 'enter' && first.messages).toHaveLength(2)
+    expect(first.kind === 'enter' && first.messages).toHaveLength(3)
     const second = await value.preStep([userMessage()], 2)
-    expect(second.kind === 'enter' && second.messages).toHaveLength(1)
+    expect(second.kind === 'enter' && second.messages).toHaveLength(2)
   })
   it('pins one immutable Wake across every model step and releases it at the turn boundary', async () => {
     const value = fixture()
-    const context = value.agentContexts[0]
-    expect(context).toMatchObject({ name: 'mnemon:runtime-memory', order: 145 })
-    expect(context?.text()).toBe('')
+    // The snapshot is no longer a shared runtime-context contribution.
+    expect(value.agentContexts).toHaveLength(0)
 
-    await value.preStep([userMessage('First step')], 7, 1)
+    const first = await value.preStep([userMessage('First step')], 7, 1)
     expect(value.promptAssemblies[0]?.sections).toContainEqual({ name: 'mnemon:runtime-memory-protocol', text: RUNTIME_MEMORY_PROTOCOL })
-    expect(value.promptAssemblies[0]?.contexts).toContainEqual({ name: 'mnemon:runtime-memory', text: 'Pinned Wake view-7' })
-    expect(context?.text()).toBe('Pinned Wake view-7')
+    expect(value.promptAssemblies[0]?.contexts).not.toContainEqual(expect.objectContaining({ name: 'mnemon:runtime-memory' }))
+    // The pinned Wake reaches the model as this plugin's own message, appended last.
+    if (first.kind !== 'enter') throw new Error('unexpected rejection')
+    const snapshot = first.messages.at(-1)
+    expect(snapshot?.source).toMatchObject({ kind: 'plugin', plugin: 'dsh-mnemon', form: 'recall' })
+    expect(snapshot?.content[0]?.text).toBe('Pinned Wake view-7')
     expect(value.memoryViews.beginTurn).toHaveBeenCalledOnce()
     expect(value.runtimeSource.bindAgentRuntime).toHaveBeenCalledOnce()
     expect(value.memoryViews.beginTurn).toHaveBeenCalledWith('session-1:7', {
@@ -268,17 +273,19 @@ describe('Mnemon DSH lifecycle integration', () => {
       agentId: 'session-1',
     })
 
-    await value.preStep([userMessage('Tool continuation')], 7, 2)
-    expect(context?.text()).toBe('Pinned Wake view-7')
+    // Same pinned Wake on a later step: unchanged text is not re-injected.
+    const continuation = await value.preStep([userMessage('Tool continuation')], 7, 2)
+    if (continuation.kind !== 'enter') throw new Error('unexpected rejection')
+    expect(continuation.messages.some(message => message.content[0]?.text === 'Pinned Wake view-7')).toBe(false)
     expect(value.memoryViews.beginTurn).toHaveBeenCalledOnce()
 
     await value.turnStopping(7)
     expect(value.memoryViews.endTurn).toHaveBeenCalledWith('session-1:7')
     expect(value.memoryViews.reconcile).toHaveBeenCalledWith({ storage: 'global', sessionId: 'session-1', agentId: 'session-1' })
-    expect(context?.text()).toBe('')
 
-    await value.preStep([userMessage('Next turn')], 8, 1)
-    expect(context?.text()).toBe('Pinned Wake view-8')
+    const nextTurn = await value.preStep([userMessage('Next turn')], 8, 1)
+    if (nextTurn.kind !== 'enter') throw new Error('unexpected rejection')
+    expect(nextTurn.messages.at(-1)?.content[0]?.text).toBe('Pinned Wake view-8')
     expect(value.memoryViews.beginTurn).toHaveBeenCalledTimes(2)
   })
 
@@ -431,15 +438,20 @@ describe('Mnemon DSH lifecycle integration', () => {
 
     expect(decision).toMatchObject({ kind: 'enter' })
     if (decision.kind !== 'enter') throw new Error('unexpected rejection')
-    expect(decision.messages).toHaveLength(2)
+    expect(decision.messages).toHaveLength(3)
     expect(decision.messages[1]?.source).toMatchObject({ kind: 'plugin', plugin: 'dsh-mnemon', form: 'instructions' })
+    expect(decision.messages[2]?.source).toMatchObject({ kind: 'plugin', plugin: 'dsh-mnemon', form: 'recall' })
     expect(decision.messages[1]?.content[0]?.text).toBe('[MNEMON] Search Documents for substantial project records; use mnemon_recall only for missing durable history or exact prior details, and mnemon_runtime_memory only for new user-supplied facts or explicit save/correction requests—never retrieved evidence. Otherwise use none.')
     expect(value.coordinator.recall).not.toHaveBeenCalled()
     expect(value.service.status).not.toHaveBeenCalled()
 
     const second = await value.preStep([userMessage('Second turn')], 2)
     if (second.kind !== 'enter') throw new Error('unexpected rejection')
-    expect(second.messages).toHaveLength(1)
+    // The reminder is not repeated. The snapshot is present because this
+    // fixture derives Wake text from the turn, so turn 2 is a new revision.
+    expect(second.messages).toHaveLength(2)
+    expect(second.messages.some(message => (message.source as { form?: string }).form === 'instructions')).toBe(false)
+    expect(second.messages.at(-1)?.source).toMatchObject({ kind: 'plugin', plugin: 'dsh-mnemon', form: 'recall' })
     expect(value.coordinator.recall).not.toHaveBeenCalled()
     expect(value.lifecycle.snapshot('session-1').counters).toMatchObject({ primes: 1, recallCues: 1, writebackCues: 1 })
   })

@@ -58,7 +58,9 @@ describe('Mnemon lifecycle with the real DSH SystemPrompt', () => {
       agentId: 'real-prompt-session',
     })
     expect(assembly.sections).toContainEqual({ name: 'mnemon:runtime-memory-protocol', text: RUNTIME_MEMORY_PROTOCOL })
-    expect(assembly.contexts).toContainEqual({ name: 'mnemon:runtime-memory', text: 'First-turn Wake' })
+    // The Wake no longer travels as a shared runtime-context contribution; it is
+    // appended as a dsh-mnemon message so it cannot invalidate other plugins' context.
+    expect(assembly.contexts).not.toContainEqual(expect.objectContaining({ name: 'mnemon:runtime-memory' }))
     expect(runtimeSource.bindAgentRuntime).toHaveBeenCalledOnce()
     stop()
     expect(memoryViews.endTurn).toHaveBeenCalledWith('real-prompt-session:1')
