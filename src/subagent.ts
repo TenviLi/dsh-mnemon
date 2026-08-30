@@ -1836,11 +1836,15 @@ Completion protocol: call \`${resultToolName}\` exactly once with the final resu
     const parentId = isSubagent(agent) ? agent.session.header?.parentSession?.trim() : undefined
     const ownerId = parentId === undefined || parentId === '' ? agent.id : parentId
     const pinned = views.activeTurn(ownerId)
-    if (pinned === undefined) {
-      if (required) throw new Error('Recall requires the MemorySource generation pinned to the current turn')
-      return undefined
-    }
-    return { turnId: pinned.turnId, viewId: pinned.viewId }
+    if (pinned !== undefined) return { turnId: pinned.turnId, viewId: pinned.viewId }
+    // Subagents can outlive the parent turn: the parent's pin is released on
+    // turn end, but recall authority stays scoped to the same owner's latest
+    // reconciled view. Fall back to it instead of failing outright, keeping the
+    // Host-pinned Source authority model intact (same owner, same memoryBodyIds).
+    const lastView = views.lastViewForAgent(ownerId)
+    if (lastView !== undefined) return { turnId: ownerId, viewId: lastView.id }
+    if (required) throw new Error('Recall requires the MemorySource generation pinned to the current turn')
+    return undefined
   }
 
   private turnRetrievalState(turnId: string): TurnRetrievalState {

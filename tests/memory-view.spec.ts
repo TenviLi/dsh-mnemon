@@ -240,6 +240,31 @@ describe('MemoryTurnViewManager', () => {
     expect(views.lastFailure()).toContain('is too long')
   })
 
+  it('lastViewForAgent returns the owner latest view after the turn ended', async () => {
+    let revision = 1
+    const snapshot = vi.fn(() => ({ revision: `runtime-${revision}`, wake: `runtime ${revision}` }))
+    const { views } = harness([{ layerId: 'runtime', mode: 'eager', snapshot }])
+    const turnOne = await views.beginTurn('session:1', { storage: 'workspace', sessionId: 'session', agentId: 'session' })
+    views.endTurn('session:1')
+    expect(views.activeTurn('session')).toBeUndefined()
+    const last = views.lastViewForAgent('session')
+    expect(last).toBeDefined()
+    expect(last!.id).toBe(turnOne.viewId)
+
+    revision = 2
+    const turnTwo = await views.beginTurn('session:2', { storage: 'workspace', sessionId: 'session', agentId: 'session' })
+    views.endTurn('session:2')
+    expect(views.lastViewForAgent('session')!.id).toBe(turnTwo.viewId)
+  })
+
+  it('lastViewForAgent is scoped per agent and returns undefined for unknown agents', async () => {
+    const { views } = harness([{ layerId: 'runtime', mode: 'eager', snapshot: () => ({ revision: 'runtime-1', wake: 'valid' }) }])
+    await views.beginTurn('alpha:1', { storage: 'workspace', sessionId: 'alpha', agentId: 'alpha' })
+    views.endTurn('alpha:1')
+    expect(views.lastViewForAgent('alpha')?.id).toBeTruthy()
+    expect(views.lastViewForAgent('unknown-agent')).toBeUndefined()
+  })
+
   it('keeps last-valid Views isolated by snapshot scope', async () => {
     let failBeta = false
     const { views } = harness([{
